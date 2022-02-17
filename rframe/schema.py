@@ -2,8 +2,7 @@
 
 
 import re
-import toolz
-from typing import Dict, ClassVar, List
+from typing import Dict, List
 from pydantic import BaseModel
 from pydantic.fields import ModelField, FieldInfo
 

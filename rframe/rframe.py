@@ -1,7 +1,6 @@
 """Main module."""
 
 from datetime import datetime
-import re
 from pydantic.typing import NoneType
 import pymongo
 import pandas as pd

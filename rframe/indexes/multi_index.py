@@ -1,8 +1,9 @@
-from numpy import isin
 import toolz
-from .base import BaseIndex
-
 import collections
+
+from numpy import isin
+
+from .base import BaseIndex
 
 
 class FrozenDict(collections.Mapping):

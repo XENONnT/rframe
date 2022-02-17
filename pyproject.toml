@@ -23,7 +23,6 @@ packages = [
 python = ">=3.8"
 click = "*"
 pydantic = "^1.9.0"
-pymongo = "^4.0.1"
 pandas = "^1.4.0"
 pytoolz = "^0.1.7"
 
