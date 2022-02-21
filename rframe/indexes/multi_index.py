@@ -75,11 +75,10 @@ class MultiIndex(BaseIndex):
     def reduce(self, documents, labels):
         if not documents:
             return documents
-        documents = [hashable_doc(doc) for doc in documents]
-
+        
         keys = set(index.name for index in self.indexes)
         keys = keys.intersection(documents[0])
-
+        documents = [hashable_doc(doc) for doc in documents]
         for index in self.indexes:
             if index.name not in labels:
                 continue
@@ -89,7 +88,7 @@ class MultiIndex(BaseIndex):
             reduced_documents = []
             for _,docs in toolz.groupby(others, documents).items():
                 label = labels[index.name]
-                reduced  = index.reduce(docs, label)
+                reduced = index.reduce(docs, label)
                 reduced_documents.extend(reduced)
             documents = reduced_documents
         documents = [unhashable_doc(doc) for doc in documents]

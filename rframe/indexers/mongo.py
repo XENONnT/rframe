@@ -1,5 +1,7 @@
 
 from ast import Import
+from itertools import product
+from typing import Iterable
 from warnings import warn
 from .base import BaseDataQuery, DatasourceIndexer
 from ..utils import singledispatchmethod
@@ -10,7 +12,35 @@ try:
     import pymongo
     from pymongo.collection import Collection
 
+    class MultiMongoAggregation(BaseDataQuery):
+        aggregations: list
 
+        def __init__(self, aggregations):
+            self.aggregations = aggregations
+    
+        def apply(self, collection: Collection):
+            if not isinstance(collection, Collection):
+                raise TypeError(f'collection must be a pymongo Collection, got {type(collection)}.')
+            results = []
+            for agg in self.aggregations:
+                results.extend(agg.apply(collection))
+            return results
+
+        def logical_or(self, other: 'MultiMongoAggregation'):
+            if isinstance(other, MultiMongoAggregation):
+                extra = other.aggregations
+            else:
+                extra = [other]
+                
+            return MultiMongoAggregation(self.aggregations + extra)
+
+        def __or__(self, other):
+            return self.logical_or(other)
+
+        def __add__(self, other):
+            return self.logical_or(other)
+
+        
     class MongoAggregation(BaseDataQuery):
         pipeline: list
 
@@ -21,17 +51,26 @@ try:
             if not isinstance(collection, Collection):
                 raise TypeError(f'collection must be a pymongo Collection, got {type(collection)}.')
 
-            return list(collection.aggregate(self.pipeline))
+            return list(collection.aggregate(self.pipeline, allowDiskUse=True))
 
         def logical_and(self, other):
             return MongoAggregation(self.pipeline+other.pipeline)
 
+        def logical_or(self, other):
+            if isinstance(other, MongoAggregation):
+                return MultiMongoAggregation([self, other])
+
+            if isinstance(other, MultiMongoAggregation):
+                return other + self
+
         def __add__(self, other):
-            return self.logical_and(other)
+            return self.logical_or(other)
 
         def __and__(self, other):
             return self.logical_and(other)
 
+        def __mul__(self, other):
+            return self.logical_and(other)
 
     @DatasourceIndexer.register_indexer(pymongo.collection.Collection)
     class MongoIndexer(DatasourceIndexer):
@@ -40,21 +79,40 @@ try:
         def compile_query(self, index, label):
             raise NotImplementedError(f'{self.__class__.__name__} does not support {type(index)} indexes.')
         
+        def simple_multi_query(self, indexes, labels):
+            pipeline = []
+            names = [idx.name for idx in indexes]
+            for idx,label in zip(indexes, labels):
+                others = [name for name in names if name != idx.name]
+                agg = self.compile_query(idx, label, others=others)
+                pipeline.extend(agg.pipeline)
+            return MongoAggregation(pipeline)
+
+        def product_multi_query(self, indexes, labels):
+            labels = [label if isinstance(label, list) else [label] 
+                        for label in labels]
+            aggs = []
+            for label_vals in product(*labels):
+                agg = self.simple_multi_query(indexes, label_vals)
+                aggs.append(agg)
+            return MultiMongoAggregation(aggs)
+
         @compile_query.register(list)
         @compile_query.register(tuple)
         @compile_query.register(MultiIndex)
-        def multi_query(self, index, labels):
-            if isinstance(index, MultiIndex):
-                index = index.indexes
+        def multi_query(self, indexes, labels):
+            if isinstance(indexes, MultiIndex):
+                indexes = indexes.indexes
                 labels = labels.values()
-            agg = MongoAggregation([])
-            for idx,label in zip(index, labels):
-                agg = agg + self.compile_query(idx, label)
-            return agg
+
+            if any([isinstance(l, list) for l in labels]):
+                return self.product_multi_query(indexes, labels)
+
+            return self.simple_multi_query(indexes, labels)
 
         @compile_query.register(Index)
         @compile_query.register(str)
-        def get_simple_query(self, index, label):
+        def get_simple_query(self, index, label, others=None):
             name = index.name if isinstance(index, Index) else index
 
             if isinstance(label, slice):
@@ -74,7 +132,7 @@ try:
                         label = None
                 else:
                     label = list(range(start, stop, step))
-
+            
             if isinstance(label, list):
                 # support querying multiple values
                 # in the same request
@@ -82,12 +140,12 @@ try:
 
             pipeline = []
             if label is not None:
-                pipeline.append({'$match': {name: label} })
+                pipeline.append({'$match': {name: label}})
 
             return MongoAggregation(pipeline)
 
         @compile_query.register(InterpolatingIndex)
-        def build_interpolation_query(self, index, label):
+        def build_interpolation_query(self, index, label, others=None):
             '''For interpolation we match the values directly before and after
             the value of interest. For each value we take the closest document on either side.
             '''
@@ -95,38 +153,21 @@ try:
                 return MongoAggregation([])
 
             if not isinstance(label, list):
-                label = [label]
+                pipelines = dict(
+                    before = mongo_before_query(index.name, label, limit=others),
+                    after = mongo_after_query(index.name, label, limit=others),
+                    )
+                pipeline = facet_pipelines(pipelines)
+                return MongoAggregation(pipeline)
 
-            queries = {f'agg{i}': mongo_closest_query(index.name, value) for i,value in enumerate(label)}
-            pipeline = [
-                    {
-                        # support multiple independent aggregations
-                        # using the facet feature 
-                        '$facet': queries,
-                    },
-
-                    # Combine results of all aggregations 
-                    {
-                        '$project': {
-                            'union': {
-                                '$setUnion': [f'${name}' for name in queries],
-                                }
-                                }
-                    },
-                    # we just want a single list of documents
-                    {
-                        '$unwind': '$union'
-                    },
-                    # move list of documents to the root of the result
-                    # so we just get a nice list of documents
-                    {
-                        '$replaceRoot': { 'newRoot': "$union" }
-                    },
-                ]
-            return MongoAggregation(pipeline)     
+            pipelines = {f'agg{i}': mongo_closest_query(index.name, value)
+                          for i,value in enumerate(label)}
+            pipeline = facet_pipelines(pipelines)
+           
+            return MongoAggregation(pipeline)
 
         @compile_query.register(IntervalIndex)
-        def build_interval_query(self, index, intervals):
+        def build_interval_query(self, index, intervals, others=None):
             '''Query overlaping documents with given interval, supports multiple 
             intervals as well as zero length intervals (left==right)
             multiple overlap queries are joined with the $or operator 
@@ -152,10 +193,15 @@ try:
                         # in a single pipeline
                         '$or': queries,
                     }
-                }
+                },
+                {
+                    '$project': {"_id": 0,},
+                },
                 ]
             else:
-                pipeline = []
+                pipeline = [{
+                    '$project': {"_id": 0,},
+                }]
             
             return MongoAggregation(pipeline)
 
@@ -179,8 +225,15 @@ try:
             except Exception as e:
                 raise InsertionError(f"Mongodb has rejected this insertion:\n {e} ")
 
+        def insert_many(self, collection: Collection, docs):
+            raise NotImplementedError
+
+        def ensure_index(self, collection, names, order=pymongo.ASCENDING):
+            collection.ensure_index([(name, order) for name in names])
+
+
 except ImportError:
-    warn('Pymongo not found, cannot register mongodb interface')
+    warn('Pymongo not found, cannot register mongodb interface.')
 
 def mongo_overlap_query(index, interval):
     '''Builds a single overlap query
@@ -237,6 +290,47 @@ def mongo_overlap_query(index, interval):
     else:
         return {}
 
+def mongo_before_query(name, value, limit=1):
+    if isinstance(limit, list):
+        return mongo_grouped_before_query(name, value, limit)
+    return [
+        {'$match': {f'{name}': {'$lte': value}}},
+        {"$sort": {f'{name}': -1}},
+        {"$limit": limit}
+    ]
+
+def mongo_after_query(name, value, limit=1):
+    if isinstance(limit, list):
+        return mongo_grouped_after_query(name, value, limit)
+    return [
+        {'$match': {f'{name}': {'$gte': value}}},
+        {"$sort": {f'{name}': 1}},
+        {"$limit": limit}
+    ]
+
+def mongo_grouped_before_query(name, value, groups):
+    
+    return [
+        {'$match': {f'{name}': {'$lte': value}}},
+        {"$sort": {f'{name}': -1}},
+        {'$group': {"_id": [f'${grp}' for grp in groups], 'doc': {'$first': '$$ROOT'}}},
+        {
+                # make the documents the new root, discarding the groupby value
+                "$replaceRoot": { "newRoot": "$doc" },
+        },
+    ]
+
+def mongo_grouped_after_query(name, value, groups):
+    return [
+        {'$match': {f'{name}': {'$gte': value}}},
+        {"$sort": {f'{name}': 1}},
+        {'$group': {"_id": [f'${grp}' for grp in groups], 'doc': {'$first': '$$ROOT'}}},
+        {
+                # make the documents the new root, discarding the groupby value
+                "$replaceRoot": { "newRoot": "$doc" },
+        },
+    ]
+
 def mongo_closest_query(name, value):
     return [
         {
@@ -264,6 +358,37 @@ def mongo_closest_query(name, value):
         },
         {
             # drop the extra fields, they are no longer needed
-            '$project': {'_diff':0, '_after':0 },
+            '$project': {'_diff':0, '_after':0, '_id': 0 },
         },
     ]
+
+def facet_pipelines(pipelines):
+    pipeline = [
+            {
+                # support multiple independent aggregations
+                # using the facet feature 
+                '$facet': pipelines,
+            },
+
+            # Combine results of all aggregations 
+            {
+                '$project': {
+                    'union': {
+                        '$setUnion': [f'${name}' for name in pipelines],
+                        }
+                        }
+            },
+            # we just want a single list of documents
+            {
+                '$unwind': '$union'
+            },
+            # move list of documents to the root of the result
+            # so we just get a nice list of documents
+            {
+                '$replaceRoot': { 'newRoot': "$union" }
+            },
+            {
+                    '$project': {"_id": 0,},
+            },
+        ]
+    return pipeline 

@@ -105,6 +105,10 @@ class BaseSchema(BaseModel):
 
     @classmethod
     def find_raw(cls, datastore, **labels)-> List['BaseSchema']:
+        labels = dict(labels)
+        for name in cls.get_index_fields():
+            if name not in labels:
+                labels[name] = None
         indexes = [cls.index_for(name) for name in labels]
         if len(indexes) == 1:
             index = indexes[0]
@@ -133,7 +137,9 @@ class BaseSchema(BaseModel):
 
     @classmethod
     def ensure_index(cls, datastore):
-        pass
+        indexer = get_indexer(datastore)
+        names = list(cls.get_index_fields())
+        indexer.ensure_index(datastore, names)
 
     def save(self, datastore):
         indexer = get_indexer(datastore)

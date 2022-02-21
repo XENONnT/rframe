@@ -13,58 +13,64 @@ from .types import LabelType
 
 
 class BaseIndex(FieldInfo):
-    __slots__ = FieldInfo.__slots__ + ('name', 'schema', 'label_type', 'nullable')
+    __slots__ = FieldInfo.__slots__ + ('name', 'schema', 
+                                       'field', 'nullable',
+                                       'unique')
 
     def __init__(self, default: Any = ..., **kwargs: Any) -> None:
         self.nullable = kwargs.pop('nullable', True)
+        self.unique = kwargs.pop('unique', True)
         super().__init__(default, **kwargs)
         self.name = 'index'
         self.schema = None
-        self.label_type = Any
+        self.field = None
         
     def __set_name__(self, owner, name):
         self.name = name
         self.schema = owner
-        self.label_type = owner.__fields__[name].type_
+        self.field = owner.__fields__[name]
 
     @property
     def names(self):
         return [self.name]
 
+    def _validate_label(self, label):
+        if label is None:
+            return label
+        label, error = self.field.validate(label, {}, loc='LabelType')
+        if error:
+            raise error
+        return label
+
     def validate_label(self, label):
         if isinstance(label, slice):
-            start = self.validate_label(label.start)
-            stop = self.validate_label(label.stop)
-            step = self.validate_label(label.step)
+            start = self._validate_label(label.start)
+            stop = self._validate_label(label.stop)
+            step = self._validate_label(label.step)
+            
             if start is None and stop is None:
                 label = None
+            elif step is not None:
+                return list(range(start, stop, step))
             else:
                 return slice(start, stop, step)
 
-        if label is None and self.nullable:
-            return label
+        if isinstance(label, dict) and self.field.type_ is not dict:
+            return {k: self._validate_label(val) for k,val in label.items()}
 
-        if isinstance(label, dict) and self.label_type is not dict:
-            return {k: self.validate_label(val) for k,val in label.items()}
+        if isinstance(label, list) and self.field.type_ is not list:
+            return [self._validate_label(val) for val in label]
 
-        if isinstance(label, list) and self.label_type is not list:
-            return [self.validate_label(val) for val in label]
+        if isinstance(label, tuple) and self.field.type_ is not tuple:
+            return tuple(self._validate_label(val) for val in label)
 
-        if isinstance(label, tuple) and self.label_type is not tuple:
-            return tuple(self.validate_label(val) for val in label)
-
-        label = self.coerce(label)
-        
-        if not isinstance(label, self.label_type):
-            raise TypeError(f'{self.name} must be of type {self.label_type}')
-
-        return label
+        return self._validate_label(label)
 
     def coerce(self, label):
         if isinstance(label, self.label_type):
             return label
         
-        label =  self._coerce(self.label_type, label)
+        label = self._coerce(self.label_type, label)
 
         return label
 

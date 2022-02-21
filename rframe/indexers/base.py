@@ -46,3 +46,6 @@ class DatasourceIndexer(ABC):
     
     def insert(self, source, doc):
         raise NotImplementedError
+
+    def insert_many(self, source, docs):
+        raise NotImplementedError
