@@ -12,26 +12,27 @@ from .schema import BaseSchema, InsertionError
 from .utils import singledispatchmethod
 from .indexers import get_indexer
 
-IndexLabel = Union[int,float,datetime,str,slice,NoneType,List]
+IndexLabel = Union[int, float, datetime, str, slice, NoneType, List]
 
 
 class RemoteFrame:
-    '''Implement basic indexing features similar to a pandas dataframe
+    """Implement basic indexing features similar to a pandas dataframe
     but operates on an arbitrary storage backend
-    '''
+    """
+
     schema: Type[BaseSchema]
     db: Any
 
     def __init__(self, schema: Type[BaseSchema], db: Any, **kwargs) -> None:
         if isinstance(db, str):
-            if db.startswith('mongodb'):
-                dbname = kwargs.pop('dbname', 'remote_dataframes')
+            if db.startswith("mongodb"):
+                dbname = kwargs.pop("dbname", "remote_dataframes")
                 db = pymongo.MongoClient(db, **kwargs)[dbname]
-            elif db.endswith('.csv'):
+            elif db.endswith(".csv"):
                 db = pd.read_csv(db)
-            elif db.endswith('.pkl'):
+            elif db.endswith(".pkl"):
                 db = pd.read_pickle(db)
-            elif db.endswith('.pq'):
+            elif db.endswith(".pq"):
                 db = pd.read_parquet(db)
             else:
                 raise TypeError("Unsupported database type")
@@ -41,6 +42,7 @@ class RemoteFrame:
     @classmethod
     def from_mongodb(cls, schema, url, db, collection, **kwargs):
         import pymongo
+
         db = pymongo.MongoClient(url, **kwargs)[db]
         collection = db[collection]
         return cls(schema, collection)
@@ -48,7 +50,7 @@ class RemoteFrame:
     @property
     def name(self):
         return self.schema.name
-    
+
     @property
     def indexer(self):
         return get_indexer(self.db)
@@ -70,8 +72,7 @@ class RemoteFrame:
         return AtIndexer(self)
 
     def sel_records(self, *args: IndexLabel, **kwargs: IndexLabel) -> List[dict]:
-        '''Queries the DB and returns the results as a list of dicts
-        '''
+        """Queries the DB and returns the results as a list of dicts"""
         index_fields = self.index.names
         labels = {name: lbl for name, lbl in zip(index_fields, args)}
         labels.update(kwargs)
@@ -81,16 +82,14 @@ class RemoteFrame:
         # return self.index.query_db(self.db, *args, **kwargs)
 
     def sel_record(self, *args: IndexLabel, **kwargs: IndexLabel) -> dict:
-        '''Return a single dict
-        '''
+        """Return a single dict"""
         records = self.sel_records(*args, **kwargs)
         if records:
-            return records[0]       
-        raise KeyError('Selection returned no records.')
+            return records[0]
+        raise KeyError("Selection returned no records.")
 
     def head(self, n=10) -> pd.DataFrame:
-        '''Return first n documents as a pandas dataframe
-        '''
+        """Return first n documents as a pandas dataframe"""
         docs = self.schema.index.head(self.db, n)
         index_fields = self.schema.index_names()
         df = pd.DataFrame(docs, columns=self.schema.all_fields())
@@ -98,28 +97,28 @@ class RemoteFrame:
         return df.sort_values(idx).set_index(idx)
 
     def sel(self, *args: IndexLabel, **kwargs: IndexLabel) -> pd.DataFrame:
-        '''select a subset of the data
+        """select a subset of the data
         returns a pandas dataframe
-        '''
+        """
         docs = self.sel_records(*args, **kwargs)
-        df = pd.DataFrame(docs, columns=self.index.names+self.columns)
+        df = pd.DataFrame(docs, columns=self.index.names + self.columns)
 
         idx = [c for c in self.schema.get_index_fields() if c in df.columns]
         return df.sort_values(idx).set_index(idx)
 
     def set(self, *args: IndexLabel, **kwargs: IndexLabel) -> BaseSchema:
-        '''Insert data by index
-        '''
+        """Insert data by index"""
         labels = {name: lbl for name, lbl in zip(self.index.names, args)}
         kwargs.update(labels)
         doc = self.schema(**kwargs)
         return doc.save(self.db, doc)
 
-    def concat(self, records: Union[pd.DataFrame,List[dict]]) -> Tuple[List[dict],List[dict],List[dict]]:
-        ''' Insert multiple records into the DB
-        '''
+    def concat(
+        self, records: Union[pd.DataFrame, List[dict]]
+    ) -> Tuple[List[dict], List[dict], List[dict]]:
+        """Insert multiple records into the DB"""
         if isinstance(records, pd.DataFrame):
-            records = records.reset_index().to_dict(orient='records')
+            records = records.reset_index().to_dict(orient="records")
 
         succeeded = []
         failed = []
@@ -136,12 +135,12 @@ class RemoteFrame:
 
         return succeeded, failed, errors
 
-    def __getitem__(self, index: Tuple[IndexLabel,...]) -> 'RemoteSeries':
+    def __getitem__(self, index: Tuple[IndexLabel, ...]) -> "RemoteSeries":
         if isinstance(index, str) and index in self.columns:
             return RemoteSeries(self, index)
         if isinstance(index, tuple) and index[0] in self.columns:
             return RemoteSeries(self, index[0])[index[1:]]
-        raise KeyError(f'{index} is not a dataframe column.')
+        raise KeyError(f"{index} is not a dataframe column.")
 
     def __call__(self, column: str, **index: IndexLabel) -> pd.DataFrame:
         index = tuple(index.get(k, None) for k in self.index.names)
@@ -150,15 +149,16 @@ class RemoteFrame:
     def __dir__(self) -> List[str]:
         return self.columns + super().__dir__()
 
-    def __getattr__(self, name: str) -> 'RemoteSeries':
-        if name != 'columns' and name in self.columns:
+    def __getattr__(self, name: str) -> "RemoteSeries":
+        if name != "columns" and name in self.columns:
             return self[name]
         raise AttributeError(name)
 
     def __repr__(self) -> str:
-        return (f"RemoteDataFrame("
-               f"index={self.index.names},"
-               f"columns={self.columns})")
+        return (
+            f"RemoteDataFrame(" f"index={self.index.names}," f"columns={self.columns})"
+        )
+
 
 class RemoteSeries:
     obj: RemoteFrame
@@ -168,7 +168,9 @@ class RemoteSeries:
         self.obj = obj
         self.column = column
 
-    def __getitem__(self, index: Union[IndexLabel,Tuple[IndexLabel,...]]) -> pd.DataFrame:
+    def __getitem__(
+        self, index: Union[IndexLabel, Tuple[IndexLabel, ...]]
+    ) -> pd.DataFrame:
         if not isinstance(index, tuple):
             index = (index,)
         return self.obj.sel(*index)[self.column]
@@ -185,15 +187,15 @@ class RemoteSeries:
         values = self.sel_values(*args, **kwargs)
         if values:
             return values[0]
-        raise KeyError('Selection returned no values.')
+        raise KeyError("Selection returned no values.")
 
-    def set(self,  *args: IndexLabel, **kwargs: IndexLabel):
-        raise InsertionError('Cannot set values on a RemoteSeries object,'
-                             'use the RemoteDataFrame.')
+    def set(self, *args: IndexLabel, **kwargs: IndexLabel):
+        raise InsertionError(
+            "Cannot set values on a RemoteSeries object," "use the RemoteDataFrame."
+        )
 
     def __repr__(self) -> str:
-        return (f"RemoteSeries(index={self.obj.index.names},"
-                f"column={self.column})")
+        return f"RemoteSeries(index={self.obj.index.names}," f"column={self.column})"
 
 
 class Indexer:
@@ -202,13 +204,12 @@ class Indexer:
 
 
 class LocIndexer(Indexer):
-
     def __call__(self, *args: IndexLabel, **kwargs: IndexLabel) -> pd.DataFrame:
         return self.obj.sel(*args, **kwargs)
 
     def __getitem__(self, index: Tuple[IndexLabel]) -> pd.DataFrame:
         columns = None
-        
+
         if isinstance(index, tuple) and len(index) == 2:
             index, columns = index
             if not isinstance(columns, list):
@@ -219,52 +220,53 @@ class LocIndexer(Indexer):
                 index = index + tuple(columns)
                 columns = None
 
-        elif isinstance(index, tuple) and len(index) == len(self.obj.columns)+1:
+        elif isinstance(index, tuple) and len(index) == len(self.obj.columns) + 1:
             index, columns = index[:-1], index[-1]
 
         if not isinstance(index, tuple):
             index = (index,)
-        
+
         df = self.obj.sel(*index)
-    
+
         if columns is not None:
             df = df[columns]
 
         return df
 
-    def __setitem__(self, key: Any, value: Union[dict,BaseSchema]) -> BaseSchema:
+    def __setitem__(self, key: Any, value: Union[dict, BaseSchema]) -> BaseSchema:
         if not isinstance(key, tuple):
             key = (key,)
-        
+
         if isinstance(value, self.obj.schema):
-            value  = value.dict()
+            value = value.dict()
 
         if not isinstance(value, dict):
-            value = {'value': value}
+            value = {"value": value}
 
         return self.obj.set(*key, **value)
 
 
 class AtIndexer(Indexer):
+    def __getitem__(self, key: Tuple[Tuple[IndexLabel, ...], str]) -> Any:
 
-    def __getitem__(self, key: Tuple[Tuple[IndexLabel, ...],str]) -> Any:
-        
-        if not (isinstance(key, tuple) and len(key)==2):
-            raise KeyError('ill-defined location. Specify '
-                           '.at[index,column] where index can be a tuple.')
-        
+        if not (isinstance(key, tuple) and len(key) == 2):
+            raise KeyError(
+                "ill-defined location. Specify "
+                ".at[index,column] where index can be a tuple."
+            )
+
         index, column = key
 
         if column not in self.obj.columns:
-            raise KeyError(f'{column} not found. Valid columns are: {self.obj.columns}')
-        
+            raise KeyError(f"{column} not found. Valid columns are: {self.obj.columns}")
+
         if not isinstance(index, tuple):
             index = (index,)
 
         if any([isinstance(idx, (slice, list, type(None))) for idx in index]):
-            raise KeyError(f'{index} is not unique index.')
+            raise KeyError(f"{index} is not unique index.")
 
-        if len(index)<len(self.obj.index.names):
-            KeyError(f'{index} is an under defined index.')
+        if len(index) < len(self.obj.index.names):
+            KeyError(f"{index} is an under defined index.")
 
         return self.obj[column].sel_value(*index)

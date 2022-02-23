@@ -1,30 +1,25 @@
-
 import pytz
 import numbers
 import pandas as pd
-from pydantic import ValidationError
-from pydantic.fields import ModelField, FieldInfo
-from typing import Generic, Any
+from pydantic.fields import FieldInfo
+from typing import Any
 
 from datetime import datetime
 
 from rframe.utils import singledispatchmethod
-from .types import LabelType
 
 
 class BaseIndex(FieldInfo):
-    __slots__ = FieldInfo.__slots__ + ('name', 'schema', 
-                                       'field', 'nullable',
-                                       'unique')
+    __slots__ = FieldInfo.__slots__ + ("name", "schema", "field", "nullable", "unique")
 
     def __init__(self, default: Any = ..., **kwargs: Any) -> None:
-        self.nullable = kwargs.pop('nullable', True)
-        self.unique = kwargs.pop('unique', True)
+        self.nullable = kwargs.pop("nullable", True)
+        self.unique = kwargs.pop("unique", True)
         super().__init__(default, **kwargs)
-        self.name = 'index'
+        self.name = "index"
         self.schema = None
         self.field = None
-        
+
     def __set_name__(self, owner, name):
         self.name = name
         self.schema = owner
@@ -37,7 +32,7 @@ class BaseIndex(FieldInfo):
     def _validate_label(self, label):
         if label is None:
             return label
-        label, error = self.field.validate(label, {}, loc='LabelType')
+        label, error = self.field.validate(label, {}, loc="LabelType")
         if error:
             raise error
         return label
@@ -47,7 +42,7 @@ class BaseIndex(FieldInfo):
             start = self._validate_label(label.start)
             stop = self._validate_label(label.stop)
             step = self._validate_label(label.step)
-            
+
             if start is None and stop is None:
                 label = None
             elif step is not None:
@@ -56,7 +51,7 @@ class BaseIndex(FieldInfo):
                 return slice(start, stop, step)
 
         if isinstance(label, dict) and self.field.type_ is not dict:
-            return {k: self._validate_label(val) for k,val in label.items()}
+            return {k: self._validate_label(val) for k, val in label.items()}
 
         if isinstance(label, list) and self.field.type_ is not list:
             return [self._validate_label(val) for val in label]
@@ -69,7 +64,7 @@ class BaseIndex(FieldInfo):
     def coerce(self, label):
         if isinstance(label, self.label_type):
             return label
-        
+
         label = self._coerce(self.label_type, label)
 
         return label
@@ -87,7 +82,7 @@ class BaseIndex(FieldInfo):
                 value = value.replace(tzinfo=pytz.utc)
             return value
         unit = self.unit if isinstance(value, numbers.Number) else None
-        utc = getattr(self, 'utc', True)
+        utc = getattr(self, "utc", True)
         value = pd.to_datetime(value, utc=utc, unit=unit).to_pydatetime()
         return self._coerce_datetime(type_, value)
 
@@ -101,6 +96,5 @@ class BaseIndex(FieldInfo):
         return docs
 
     def __repr__(self):
-        type_ = self.field.type_ if self.field else 'UNKNOWN'
+        type_ = self.field.type_ if self.field else "UNKNOWN"
         return f"{self.__class__.__name__}(name={self.name},type={type_})"
-

@@ -1,9 +1,7 @@
 from abc import ABC, abstractmethod
-from ..utils import singledispatchmethod
 
 
 class BaseDataQuery(ABC):
-
     @abstractmethod
     def apply(self):
         pass
@@ -20,7 +18,7 @@ class DatasourceIndexer(ABC):
         self.source = source
 
     @classmethod
-    def register_indexer(cls, source_type, indexer = None):
+    def register_indexer(cls, source_type, indexer=None):
         def wrapper(indexer):
             if isinstance(source_type, tuple):
                 for t in source_type:
@@ -28,9 +26,12 @@ class DatasourceIndexer(ABC):
                 return indexer
 
             if source_type in cls.INTERFACES:
-                raise ValueError(f'Interface for source {source_type} already registered.')
+                raise ValueError(
+                    f"Interface for source {source_type} already registered."
+                )
             cls.INTERFACES[source_type] = indexer
             return indexer
+
         return wrapper(indexer) if indexer is not None else wrapper
 
     @classmethod
@@ -38,12 +39,14 @@ class DatasourceIndexer(ABC):
         type_ = type(source)
         if type_ in cls.INTERFACES:
             return cls.INTERFACES[type_](source, *args, **kwargs)
-        raise NotImplementedError(f'No implementation for data source of type {type(source)}')
+        raise NotImplementedError(
+            f"No implementation for data source of type {type(source)}"
+        )
 
     @abstractmethod
     def compile_query(self, index, label):
         pass
-    
+
     def insert(self, source, doc):
         raise NotImplementedError
 

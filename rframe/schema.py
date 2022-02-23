@@ -1,6 +1,3 @@
-
-
-
 import re
 import pandas as pd
 from typing import Dict, List
@@ -10,9 +7,10 @@ from pydantic.fields import ModelField, FieldInfo
 from .indexes import BaseIndex, Index, MultiIndex
 from .indexers import get_indexer
 
+
 def camel_to_snake(name):
-  name = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
-  return re.sub('([a-z0-9])([A-Z])', r'\1_\2', name).lower()
+    name = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", name)
+    return re.sub("([a-z0-9])([A-Z])", r"\1_\2", name).lower()
 
 
 class InsertionError(Exception):
@@ -20,10 +18,10 @@ class InsertionError(Exception):
 
 
 class BaseSchema(BaseModel):
-    _name: str = ''
-    
+    _name: str = ""
+
     def __init_subclass__(cls) -> None:
-        if '_name' not in cls.__dict__:
+        if "_name" not in cls.__dict__:
             cls._name = camel_to_snake(cls.__name__)
         index_fields = cls.get_index_fields()
         indexes = []
@@ -44,12 +42,11 @@ class BaseSchema(BaseModel):
         raise NotImplementedError
 
     @classmethod
-    def field_info(cls) -> Dict[str,FieldInfo]:
-        return {name: field.field_info 
-                for name, field in cls.__fields__.items()}
+    def field_info(cls) -> Dict[str, FieldInfo]:
+        return {name: field.field_info for name, field in cls.__fields__.items()}
 
     @classmethod
-    def get_index_fields(cls) -> Dict[str,ModelField]:
+    def get_index_fields(cls) -> Dict[str, ModelField]:
         fields = {}
         for name, field in cls.__fields__.items():
             if isinstance(field.field_info, BaseIndex):
@@ -57,7 +54,7 @@ class BaseSchema(BaseModel):
         return fields
 
     @classmethod
-    def get_column_fields(cls) -> Dict[str,ModelField]:
+    def get_column_fields(cls) -> Dict[str, ModelField]:
         fields = {}
         for name, field in cls.__fields__.items():
             if not isinstance(field.field_info, BaseIndex):
@@ -94,7 +91,7 @@ class BaseSchema(BaseModel):
         return {k: data[k] for k in self.get_index_fields()}
 
     @classmethod
-    def compile_query(cls, datastore, **labels)-> List['BaseSchema']:
+    def compile_query(cls, datastore, **labels) -> List["BaseSchema"]:
         indexes = [cls.index_for(name) for name in labels]
         if len(indexes) == 1:
             index = indexes[0]
@@ -106,11 +103,11 @@ class BaseSchema(BaseModel):
         label = index.validate_label(label)
 
         indexer = get_indexer(datastore)
-        
+
         return indexer.compile_query(index, label)
 
     @classmethod
-    def _find(cls, datastore, **labels)-> List['BaseSchema']:
+    def _find(cls, datastore, **labels) -> List["BaseSchema"]:
         labels = dict(labels)
         for name in cls.get_index_fields():
             if name not in labels:
@@ -125,26 +122,26 @@ class BaseSchema(BaseModel):
 
         label = index.validate_label(label)
         indexer = get_indexer(datastore)
-        
-        query =  indexer.compile_query(index, label)
+
+        query = indexer.compile_query(index, label)
         docs = query.apply(datastore)
         docs = index.reduce(docs, labels)
         return docs
 
     @classmethod
-    def find(cls, datastore=None, **labels)-> List['BaseSchema']:
+    def find(cls, datastore=None, **labels) -> List["BaseSchema"]:
         if datastore is None:
             datastore = cls.default_datasource()
         docs = cls._find(datastore, **labels)
         if not docs:
             return []
-        
+
         docs = [cls(**doc) for doc in docs]
 
         return docs
 
     @classmethod
-    def find_one(cls, datastore=None, **labels)-> 'BaseSchema':
+    def find_one(cls, datastore=None, **labels) -> "BaseSchema":
         docs = cls.find(datastore, **labels)
         if docs:
             return docs[0]
@@ -169,7 +166,7 @@ class BaseSchema(BaseModel):
 
     def pre_update(self, datastore, new):
         pass
-    
+
     def same_values(self, other):
         for attr in self.get_column_fields():
             left, right = getattr(self, attr), getattr(other, attr)
