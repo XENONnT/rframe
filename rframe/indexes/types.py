@@ -9,7 +9,7 @@ from pydantic import BaseModel, ValidationError
 LabelType = TypeVar('LabelType', int, str, datetime.datetime)
 
 
-class Interval(BaseModel, Generic[LabelType]):
+class Interval(BaseModel):
     left: LabelType
     right: LabelType = None
 
@@ -30,13 +30,22 @@ class Interval(BaseModel, Generic[LabelType]):
             right = v.right
         else:
             left, right = v, v
-            
-        if field.sub_fields:
-            left, error = field.sub_fields[0].validate(left, {}, loc='LabelType')
-            if error:
-                raise ValidationError([error])
-            if right is not None:
-                right, error = field.sub_fields[0].validate(right, {}, loc='LabelType')
-                if error:
-                    raise ValidationError([error])
+        
+        if right is not None and left>right:
+            left, right = right, left
         return cls(left=left, right=right)
+
+    def __class_getitem__(cls, type_):
+        if issubclass(type_, int):
+            return IntegerInterval
+        if issubclass(type_, datetime.datetime):
+            return TimeInterval
+        raise TypeError(type_)
+        
+class IntegerInterval(Interval):
+    left: int
+    right: int = None
+    
+class TimeInterval(Interval):
+    left: datetime.datetime
+    right: datetime.datetime = None

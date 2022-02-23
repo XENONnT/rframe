@@ -101,5 +101,6 @@ class BaseIndex(FieldInfo):
         return docs
 
     def __repr__(self):
-        return f"{self.__class__.__name__}(name={self.name},type={self.label_type})"
+        type_ = self.field.type_ if self.field else 'UNKNOWN'
+        return f"{self.__class__.__name__}(name={self.name},type={type_})"
 

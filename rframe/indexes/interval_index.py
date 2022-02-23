@@ -6,20 +6,20 @@ from typing import Iterable, Mapping
 from nbformat import ValidationError
 from datetime import datetime
 
-from .types import Interval
+from .types import Interval, TimeInterval, IntegerInterval
 from .base import BaseIndex
 
 
 class IntervalIndex(BaseIndex):
-    __slots__ = BaseIndex.__slots__ + ('left_name', 'right_name', 'closed')
+    __slots__ = BaseIndex.__slots__ + ('closed', )
 
     def __set_name__(self, owner, name):
         super().__set_name__(owner, name)
 
-        if self.field.type_ is not Interval:
+        if not issubclass(self.field.type_, Interval):
             raise ValidationError(f'{name} field is a interval index but is not of type {type(Interval)}')
-        if not self.field.sub_fields:
-            raise ValidationError(f'You must specify a label type for the {name} index')
+        # if not self.field.sub_fields:
+        #     raise ValidationError(f'You must specify a label type for the {name} index')
 
     def __init__(self, closed='right', **kwargs):
         super().__init__(**kwargs)
@@ -27,7 +27,8 @@ class IntervalIndex(BaseIndex):
         self.closed = closed
 
     def _to_pandas(self, label):
-        if self.label_type is datetime:
+
+        if self.field.type_ is TimeInterval:
             if label is None:
                 label = 9e18
             return pd.to_datetime(label)

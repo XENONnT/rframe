@@ -20,11 +20,12 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.8"
+python = ">=3.8,<3.11"
 click = "*"
 pydantic = "^1.9.0"
 pandas = "^1.4.0"
 toolz = "^0.11.2"
+scipy = "^1.8.0"
 
 [tool.poetry.dev-dependencies]
 bumpversion = "*"
@@ -39,6 +40,8 @@ yapf = "*"
 sphinx-material = "*"
 nbsphinx = "*"
 invoke = "^1.6.0"
+hypothesis = "^6.37.2"
+pymongo = "^4.0.1"
 
 [tool.poetry.scripts]
 rframe = 'rframe.cli:main'

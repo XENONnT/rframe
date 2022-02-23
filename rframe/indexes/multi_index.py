@@ -1,12 +1,12 @@
 import toolz
-import collections
+from collections.abc import Mapping
 
 from numpy import isin
 
 from .base import BaseIndex
 
 
-class FrozenDict(collections.Mapping):
+class FrozenDict(Mapping):
     '''https://stackoverflow.com/questions/2703599/what-would-a-frozen-dict-be
     '''
     def __init__(self, *args, **kwargs):

@@ -2,6 +2,7 @@
 
 
 import re
+import pandas as pd
 from typing import Dict, List
 from pydantic import BaseModel
 from pydantic.fields import ModelField, FieldInfo
@@ -22,8 +23,8 @@ class BaseSchema(BaseModel):
     _name: str = ''
     
     def __init_subclass__(cls) -> None:
-        if 'name' not in cls.__dict__:
-            cls.name = camel_to_snake(cls.__name__)
+        if '_name' not in cls.__dict__:
+            cls._name = camel_to_snake(cls.__name__)
         index_fields = cls.get_index_fields()
         indexes = []
         for name, field in index_fields.items():
@@ -37,6 +38,10 @@ class BaseSchema(BaseModel):
             index = MultiIndex(*indexes)
 
         cls.index = index
+
+    @classmethod
+    def default_datasource(cls):
+        raise NotImplementedError
 
     @classmethod
     def field_info(cls) -> Dict[str,FieldInfo]:
@@ -99,12 +104,13 @@ class BaseSchema(BaseModel):
             label = labels
 
         label = index.validate_label(label)
+
         indexer = get_indexer(datastore)
         
         return indexer.compile_query(index, label)
 
     @classmethod
-    def find_raw(cls, datastore, **labels)-> List['BaseSchema']:
+    def _find(cls, datastore, **labels)-> List['BaseSchema']:
         labels = dict(labels)
         for name in cls.get_index_fields():
             if name not in labels:
@@ -126,8 +132,10 @@ class BaseSchema(BaseModel):
         return docs
 
     @classmethod
-    def find(cls, datastore, **labels)-> List['BaseSchema']:
-        docs = cls.find_raw(datastore, **labels)
+    def find(cls, datastore=None, **labels)-> List['BaseSchema']:
+        if datastore is None:
+            datastore = cls.default_datasource()
+        docs = cls._find(datastore, **labels)
         if not docs:
             return []
         
@@ -136,10 +144,16 @@ class BaseSchema(BaseModel):
         return docs
 
     @classmethod
+    def find_one(cls, datastore=None, **labels)-> 'BaseSchema':
+        docs = cls.find(datastore, **labels)
+        if docs:
+            return docs[0]
+
+    @classmethod
     def ensure_index(cls, datastore):
         indexer = get_indexer(datastore)
         names = list(cls.get_index_fields())
-        indexer.ensure_index(datastore, names)
+        return indexer.ensure_index(datastore, names)
 
     def save(self, datastore):
         indexer = get_indexer(datastore)
@@ -157,8 +171,13 @@ class BaseSchema(BaseModel):
         pass
     
     def same_values(self, other):
-        return all([getattr(self, attr) == getattr(other, attr)
-                     for attr in self.get_column_fields()])
+        for attr in self.get_column_fields():
+            left, right = getattr(self, attr), getattr(other, attr)
+            if pd.isna(left) and pd.isna(right):
+                continue
+            if left != right:
+                return False
+        return True
 
     def pandas_dict(self):
         data = self.dict()

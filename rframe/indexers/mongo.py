@@ -3,6 +3,9 @@ from ast import Import
 from itertools import product
 from typing import Iterable
 from warnings import warn
+import pandas as pd
+
+from rframe.indexes.types import Interval
 from .base import BaseDataQuery, DatasourceIndexer
 from ..utils import singledispatchmethod
 from ..indexes import Index, InterpolatingIndex, IntervalIndex, MultiIndex
@@ -105,8 +108,8 @@ try:
                 indexes = indexes.indexes
                 labels = labels.values()
 
-            if any([isinstance(l, list) for l in labels]):
-                return self.product_multi_query(indexes, labels)
+            # if any([isinstance(l, list) for l in labels]):
+            #     return self.product_multi_query(indexes, labels)
 
             return self.simple_multi_query(indexes, labels)
 
@@ -157,12 +160,12 @@ try:
                     before = mongo_before_query(index.name, label, limit=others),
                     after = mongo_after_query(index.name, label, limit=others),
                     )
-                pipeline = facet_pipelines(pipelines)
+                pipeline = merge_pipelines(pipelines)
                 return MongoAggregation(pipeline)
 
             pipelines = {f'agg{i}': mongo_closest_query(index.name, value)
                           for i,value in enumerate(label)}
-            pipeline = facet_pipelines(pipelines)
+            pipeline = merge_pipelines(pipelines)
            
             return MongoAggregation(pipeline)
 
@@ -259,6 +262,8 @@ def mongo_overlap_query(index, interval):
         left, right = interval
     elif isinstance(interval, slice):
         left, right = interval.start, interval.stop
+    elif isinstance(interval, (pd.Interval, Interval)):
+        left, right = interval.left, interval.right
     else:
         left = right = interval
     
@@ -362,7 +367,7 @@ def mongo_closest_query(name, value):
         },
     ]
 
-def facet_pipelines(pipelines):
+def merge_pipelines(pipelines):
     pipeline = [
             {
                 # support multiple independent aggregations

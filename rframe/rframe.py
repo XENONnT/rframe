@@ -39,10 +39,11 @@ class RemoteFrame:
         self.db = db
 
     @classmethod
-    def from_mongodb(cls, schema, url, dbname='remote_dataframes', **kwargs):
+    def from_mongodb(cls, schema, url, db, collection, **kwargs):
         import pymongo
-        db = pymongo.MongoClient(url, **kwargs)[dbname]
-        return cls(schema, db)
+        db = pymongo.MongoClient(url, **kwargs)[db]
+        collection = db[collection]
+        return cls(schema, collection)
 
     @property
     def name(self):
@@ -114,16 +115,18 @@ class RemoteFrame:
         doc = self.schema(**kwargs)
         return doc.save(self.db, doc)
 
-    def insert(self, records: Union[pd.DataFrame,List[dict]]) -> Tuple[List[dict],List[dict],List[dict]]:
+    def concat(self, records: Union[pd.DataFrame,List[dict]]) -> Tuple[List[dict],List[dict],List[dict]]:
         ''' Insert multiple records into the DB
         '''
         if isinstance(records, pd.DataFrame):
             records = records.reset_index().to_dict(orient='records')
+
         succeeded = []
         failed = []
         errors = []
         for record in records:
-            doc = self.schema(**record)
+            if not isinstance(doc, self, self.schema):
+                doc = self.schema(**record)
             try:
                 doc.save(self.db)
                 succeeded.append(doc.dict())
@@ -229,7 +232,7 @@ class LocIndexer(Indexer):
 
         return df
 
-    def __setitem__(self, key: str, value: Union[dict,BaseSchema]) -> BaseSchema:
+    def __setitem__(self, key: Any, value: Union[dict,BaseSchema]) -> BaseSchema:
         if not isinstance(key, tuple):
             key = (key,)
         
