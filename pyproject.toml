@@ -21,7 +21,6 @@ packages = [
 
 [tool.poetry.dependencies]
 python = ">=3.8,<3.11"
-click = "*"
 pydantic = "^1.9.0"
 pandas = "^1.4.0"
 toolz = "^0.11.2"
