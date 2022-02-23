@@ -22,11 +22,9 @@ class IntervalIndex(BaseIndex):
 
     def __init__(self, closed="right", **kwargs):
         super().__init__(**kwargs)
-
         self.closed = closed
 
     def _to_pandas(self, label):
-
         if self.field.type_ is TimeInterval:
             if label is None:
                 label = 9e18

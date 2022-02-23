@@ -4,13 +4,14 @@ from typing import Mapping, TypeVar
 from numpy import isin
 
 from pydantic import BaseModel
+import pydantic
 
 LabelType = TypeVar("LabelType", int, str, datetime.datetime)
 
 
 class Interval(BaseModel):
     left: LabelType
-    right: LabelType = None
+    right: LabelType
 
     @classmethod
     def __get_validators__(cls):
@@ -24,13 +25,13 @@ class Interval(BaseModel):
         elif isinstance(v, Mapping):
             left = v.get("left", None)
             right = v.get("right", None)
-        elif isinstance(v, (pd.Interval, Interval)):
+        elif hasattr(v, 'left') and hasattr(v, 'right'):
             left = v.left
             right = v.right
         else:
             left, right = v, v
 
-        if right is not None and left > right:
+        if left > right:
             left, right = right, left
         return cls(left=left, right=right)
 
@@ -43,10 +44,9 @@ class Interval(BaseModel):
 
 
 class IntegerInterval(Interval):
-    left: int
-    right: int = None
-
+    left = pydantic.conint(ge=0, lt=int(2**32-1))
+    right = pydantic.conint(ge=0, lt=int(2**32-1))
 
 class TimeInterval(Interval):
     left: datetime.datetime
-    right: datetime.datetime = None
+    right: datetime.datetime

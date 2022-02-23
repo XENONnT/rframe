@@ -49,7 +49,7 @@ class RemoteFrame:
 
     @property
     def name(self):
-        return self.schema.name
+        return self.schema._name
 
     @property
     def indexer(self):
@@ -79,7 +79,6 @@ class RemoteFrame:
         docs = self.schema.find(self.db, **labels)
         docs = [doc.pandas_dict() for doc in docs]
         return docs
-        # return self.index.query_db(self.db, *args, **kwargs)
 
     def sel_record(self, *args: IndexLabel, **kwargs: IndexLabel) -> dict:
         """Return a single dict"""
@@ -111,7 +110,7 @@ class RemoteFrame:
         labels = {name: lbl for name, lbl in zip(self.index.names, args)}
         kwargs.update(labels)
         doc = self.schema(**kwargs)
-        return doc.save(self.db, doc)
+        return doc.save(self.db)
 
     def concat(
         self, records: Union[pd.DataFrame, List[dict]]
@@ -128,9 +127,9 @@ class RemoteFrame:
                 doc = self.schema(**record)
             try:
                 doc.save(self.db)
-                succeeded.append(doc.dict())
+                succeeded.append(doc)
             except InsertionError as e:
-                failed.append(doc.dict())
+                failed.append(doc)
                 errors.append(str(e))
 
         return succeeded, failed, errors

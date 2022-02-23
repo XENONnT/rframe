@@ -1,6 +1,7 @@
 from itertools import product
 from warnings import warn
 import pandas as pd
+from pydantic import BaseModel
 
 from rframe.indexes.types import Interval
 from .base import BaseDataQuery, DatasourceIndexer
@@ -179,13 +180,14 @@ try:
             """
             if not isinstance(intervals, list):
                 intervals = [intervals]
-
+            
             queries = []
             for interval in intervals:
                 if interval is None:
                     continue
                 if isinstance(interval, tuple) and all([i is None for i in interval]):
                     continue
+
                 query = mongo_overlap_query(index, interval)
                 if query:
                     queries.append(query)
@@ -272,9 +274,11 @@ def mongo_overlap_query(index, interval):
     # handle different kinds of interval definitions
     if isinstance(interval, tuple):
         left, right = interval
+    elif isinstance(interval, dict):
+        left, right = interval['left'], interval['right']
     elif isinstance(interval, slice):
         left, right = interval.start, interval.stop
-    elif isinstance(interval, (pd.Interval, Interval)):
+    elif hasattr(interval, 'left') and hasattr(interval, 'right'):
         left, right = interval.left, interval.right
     else:
         left = right = interval

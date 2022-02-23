@@ -90,6 +90,10 @@ class BaseSchema(BaseModel):
         data = self.dict()
         return {k: data[k] for k in self.get_index_fields()}
 
+    @property
+    def index_labels_tuple(self):
+        return tuple(v for v in self.index_labels.values())
+
     @classmethod
     def compile_query(cls, datastore, **labels) -> List["BaseSchema"]:
         indexes = [cls.index_for(name) for name in labels]

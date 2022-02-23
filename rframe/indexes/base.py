@@ -1,3 +1,4 @@
+from pydantic import BaseModel
 import pytz
 import numbers
 import pandas as pd
@@ -35,6 +36,8 @@ class BaseIndex(FieldInfo):
         label, error = self.field.validate(label, {}, loc="LabelType")
         if error:
             raise error
+        if isinstance(label, BaseModel):
+            label = label.dict()
         return label
 
     def validate_label(self, label):
