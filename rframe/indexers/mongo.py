@@ -137,14 +137,19 @@ try:
                 else:
                     label = list(range(start, stop, step))
 
+            match = {name: label}
+
             if isinstance(label, list):
                 # support querying multiple values
                 # in the same request
-                label = {"$in": label}
+                match = {name: {"$in": label} }
+
+            elif isinstance(label, dict):
+                match = {f"{name}.{k}": v for k,v in label.items()}
 
             pipeline = []
             if label is not None:
-                pipeline.append({"$match": {name: label}})
+                pipeline.append({ "$match": match })
 
             return MongoAggregation(pipeline)
 

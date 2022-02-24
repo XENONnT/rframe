@@ -1,4 +1,5 @@
 import datetime
+from email.policy import default
 import pandas as pd
 from typing import Mapping, TypeVar
 from numpy import isin
@@ -11,7 +12,7 @@ LabelType = TypeVar("LabelType", int, str, datetime.datetime)
 
 class Interval(BaseModel):
     left: LabelType
-    right: LabelType
+    right: LabelType = None
 
     @classmethod
     def __get_validators__(cls):
@@ -25,13 +26,14 @@ class Interval(BaseModel):
         elif isinstance(v, Mapping):
             left = v.get("left", None)
             right = v.get("right", None)
-        elif hasattr(v, 'left') and hasattr(v, 'right'):
+
+        elif hasattr(v, 'left') and hasattr(v, 'left'):
             left = v.left
             right = v.right
         else:
             left, right = v, v
 
-        if left > right:
+        if right is not None and left > right:
             left, right = right, left
         return cls(left=left, right=right)
 
@@ -49,4 +51,4 @@ class IntegerInterval(Interval):
 
 class TimeInterval(Interval):
     left: datetime.datetime
-    right: datetime.datetime
+    right: datetime.datetime = None
