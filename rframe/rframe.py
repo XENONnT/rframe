@@ -1,5 +1,6 @@
 """Main module."""
 
+import re
 from datetime import datetime
 from pydantic.typing import NoneType
 import pymongo
@@ -14,6 +15,9 @@ from .indexers import get_indexer
 
 IndexLabel = Union[int, float, datetime, str, slice, NoneType, List]
 
+def camel_to_snake(name):
+    name = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", name)
+    return re.sub("([a-z0-9])([A-Z])", r"\1_\2", name).lower()
 
 class RemoteFrame:
     """Implement basic indexing features similar to a pandas dataframe
@@ -23,19 +27,7 @@ class RemoteFrame:
     schema: Type[BaseSchema]
     db: Any
 
-    def __init__(self, schema: Type[BaseSchema], db: Any, **kwargs) -> None:
-        if isinstance(db, str):
-            if db.startswith("mongodb"):
-                dbname = kwargs.pop("dbname", "remote_dataframes")
-                db = pymongo.MongoClient(db, **kwargs)[dbname]
-            elif db.endswith(".csv"):
-                db = pd.read_csv(db)
-            elif db.endswith(".pkl"):
-                db = pd.read_pickle(db)
-            elif db.endswith(".pq"):
-                db = pd.read_parquet(db)
-            else:
-                raise TypeError("Unsupported database type")
+    def __init__(self, schema: Type[BaseSchema], db: Any) -> None:
         self.schema = schema
         self.db = db
 
@@ -49,7 +41,9 @@ class RemoteFrame:
 
     @property
     def name(self):
-        return self.schema._name
+        if hasattr(self, '_NAME'):
+            return self._NAME
+        return camel_to_snake(self.schema.__name__)
 
     @property
     def indexer(self):

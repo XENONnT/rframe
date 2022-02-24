@@ -8,34 +8,11 @@ from .indexes import BaseIndex, Index, MultiIndex
 from .indexers import get_indexer
 
 
-def camel_to_snake(name):
-    name = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", name)
-    return re.sub("([a-z0-9])([A-Z])", r"\1_\2", name).lower()
-
-
 class InsertionError(Exception):
     pass
 
 
 class BaseSchema(BaseModel):
-    _name: str = ""
-
-    def __init_subclass__(cls) -> None:
-        if "_name" not in cls.__dict__:
-            cls._name = camel_to_snake(cls.__name__)
-        index_fields = cls.get_index_fields()
-        indexes = []
-        for name, field in index_fields.items():
-            index = field.field_info
-            index.__set_name__(cls, name)
-            indexes.append(index)
-
-        if len(indexes) == 1:
-            index = indexes[0]
-        else:
-            index = MultiIndex(*indexes)
-
-        cls.index = index
 
     @classmethod
     def default_datasource(cls):
