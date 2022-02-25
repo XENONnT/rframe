@@ -1,3 +1,4 @@
+from sqlite3 import Timestamp
 from pydantic import BaseModel
 import pytz
 import numbers
@@ -33,6 +34,8 @@ class BaseIndex(FieldInfo):
     def _validate_label(self, label):
         if label is None:
             return label
+        if isinstance(label, pd.Timestamp):
+            label = label.to_pydatetime() 
         label, error = self.field.validate(label, {}, loc="LabelType")
         if error:
             raise error

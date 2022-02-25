@@ -8,10 +8,10 @@ import pandas as pd
 
 from typing import Any, Dict, List, Type, Union, Tuple
 
-from rframe.indexers import get_indexer
+from rframe.interfaces import get_interface
 from .schema import BaseSchema, InsertionError
 from .utils import singledispatchmethod
-from .indexers import get_indexer
+from .interfaces import get_interface
 
 IndexLabel = Union[int, float, datetime, str, slice, NoneType, List]
 
@@ -46,8 +46,8 @@ class RemoteFrame:
         return camel_to_snake(self.schema.__name__)
 
     @property
-    def indexer(self):
-        return get_indexer(self.db)
+    def interface(self):
+        return get_interface(self.db)
 
     @property
     def columns(self):

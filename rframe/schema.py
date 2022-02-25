@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from pydantic.fields import ModelField, FieldInfo
 
 from .indexes import BaseIndex, Index, MultiIndex
-from .indexers import get_indexer
+from .interfaces import get_interface
 
 
 class InsertionError(Exception):
@@ -83,9 +83,9 @@ class BaseSchema(BaseModel):
 
         label = index.validate_label(label)
 
-        indexer = get_indexer(datastore)
+        interface = get_interface(datastore)
 
-        return indexer.compile_query(index, label)
+        return interface.compile_query(index, label)
 
     @classmethod
     def _find(cls, datastore, **labels) -> List["BaseSchema"]:
@@ -102,9 +102,9 @@ class BaseSchema(BaseModel):
             label = labels
 
         label = index.validate_label(label)
-        indexer = get_indexer(datastore)
+        interface = get_interface(datastore)
 
-        query = indexer.compile_query(index, label)
+        query = interface.compile_query(index, label)
         docs = query.apply(datastore)
         docs = index.reduce(docs, labels)
         return docs
@@ -129,18 +129,18 @@ class BaseSchema(BaseModel):
 
     @classmethod
     def ensure_index(cls, datastore):
-        indexer = get_indexer(datastore)
+        interface = get_interface(datastore)
         names = list(cls.get_index_fields())
-        return indexer.ensure_index(datastore, names)
+        return interface.ensure_index(datastore, names)
 
     def save(self, datastore):
-        indexer = get_indexer(datastore)
+        interface = get_interface(datastore)
         existing = self.find(datastore, **self.index_labels)
         if existing:
             existing[0].pre_update(datastore, self)
         else:
             self.pre_insert(datastore)
-        return indexer.insert(datastore, self)
+        return interface.insert(datastore, self)
 
     def pre_insert(self, datastore):
         pass

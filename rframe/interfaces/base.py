@@ -6,39 +6,36 @@ class BaseDataQuery(ABC):
     def apply(self):
         pass
 
-    @abstractmethod
-    def __add__(self, other):
-        pass
 
-
-class DatasourceIndexer(ABC):
-    INTERFACES = {}
+class DatasourceInterface(ABC):
+    _INTERFACES = {}
 
     def __init__(self, source) -> None:
         self.source = source
 
     @classmethod
-    def register_indexer(cls, source_type, indexer=None):
-        def wrapper(indexer):
+    def register_interface(cls, source_type, interface=None):
+        def wrapper(interface):
             if isinstance(source_type, tuple):
                 for t in source_type:
-                    cls.register(t, indexer)
-                return indexer
+                    cls.register(t, interface)
+                return interface
 
-            if source_type in cls.INTERFACES:
+            if source_type in cls._INTERFACES:
                 raise ValueError(
                     f"Interface for source {source_type} already registered."
                 )
-            cls.INTERFACES[source_type] = indexer
-            return indexer
+            cls._INTERFACES[source_type] = interface
+            return interface
 
-        return wrapper(indexer) if indexer is not None else wrapper
+        return wrapper(interface) if interface is not None else wrapper
 
     @classmethod
     def from_source(cls, source, *args, **kwargs):
-        type_ = type(source)
-        if type_ in cls.INTERFACES:
-            return cls.INTERFACES[type_](source, *args, **kwargs)
+        for type_ in type(source).mro():
+            if type_ in cls._INTERFACES:
+                return cls._INTERFACES[type_](source, *args, **kwargs)
+    
         raise NotImplementedError(
             f"No implementation for data source of type {type(source)}"
         )

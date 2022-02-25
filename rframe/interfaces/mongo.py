@@ -4,7 +4,7 @@ import pandas as pd
 from pydantic import BaseModel
 
 from rframe.indexes.types import Interval
-from .base import BaseDataQuery, DatasourceIndexer
+from .base import BaseDataQuery, DatasourceInterface
 from ..utils import singledispatchmethod
 from ..indexes import Index, InterpolatingIndex, IntervalIndex, MultiIndex
 
@@ -76,8 +76,9 @@ try:
         def __mul__(self, other):
             return self.logical_and(other)
 
-    @DatasourceIndexer.register_indexer(pymongo.collection.Collection)
-    class MongoIndexer(DatasourceIndexer):
+    @DatasourceInterface.register_interface(pymongo.collection.Collection)
+    class MongoInterface(DatasourceInterface):
+        
         @singledispatchmethod
         def compile_query(self, index, label):
             raise NotImplementedError(
