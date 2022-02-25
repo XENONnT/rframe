@@ -2,13 +2,13 @@
 
 import re
 from datetime import datetime
-from pydantic.typing import NoneType
+from typing import Any, List, Tuple, Type, Union
+
 import pandas as pd
+from pydantic.typing import NoneType
 
-from typing import Any, List, Type, Union, Tuple
-
-from .schema import BaseSchema, InsertionError
 from .interfaces import get_interface
+from .schema import BaseSchema, InsertionError
 
 IndexLabel = Union[int, float, datetime, str, slice, NoneType, List]
 
@@ -65,7 +65,7 @@ class RemoteFrame:
         return AtIndexer(self)
 
     def sel_records(self, *args: IndexLabel,
-                          **kwargs: IndexLabel) -> List[dict]:
+                    **kwargs: IndexLabel) -> List[dict]:
         """Queries the DB and returns the results as a list of dicts"""
         index_fields = self.index.names
         labels = {name: lbl for name, lbl in zip(index_fields, args)}
@@ -146,13 +146,11 @@ class RemoteFrame:
         if name != "columns" and name in self.columns:
             return self[name]
         raise AttributeError(name)
-        
+
     def __repr__(self) -> str:
-        return (
-            f"{self.__class__.__name__}("
-            f"index={self.index.names},"
-            f"columns={self.columns})"
-        )
+        return (f"{self.__class__.__name__}("
+                f"index={self.index.names},"
+                f"columns={self.columns})")
 
 
 class RemoteSeries:
@@ -164,10 +162,10 @@ class RemoteSeries:
         self.column = column
 
     def __getitem__(
-        self, index: Union[IndexLabel, Tuple[IndexLabel, ...]]
-    ) -> pd.DataFrame:
+            self, index: Union[IndexLabel, Tuple[IndexLabel,
+                                                 ...]]) -> pd.DataFrame:
         if not isinstance(index, tuple):
-            index = (index,)
+            index = (index, )
         return self.obj.sel(*index)[self.column]
 
     def sel(self, *args: IndexLabel, **kwargs: IndexLabel) -> pd.DataFrame:
@@ -185,21 +183,23 @@ class RemoteSeries:
         raise KeyError("Selection returned no values.")
 
     def set(self, *args: IndexLabel, **kwargs: IndexLabel):
-        raise InsertionError(
-            "Cannot set values on a RemoteSeries object," "use the RemoteDataFrame."
-        )
+        raise InsertionError("Cannot set values on a RemoteSeries object,"
+                             "use the RemoteDataFrame.")
 
     def __repr__(self) -> str:
         return f"RemoteSeries(index={self.obj.index.names}," f"column={self.column})"
 
 
 class Indexer:
+
     def __init__(self, obj: RemoteFrame):
         self.obj = obj
 
 
 class LocIndexer(Indexer):
-    def __call__(self, *args: IndexLabel, **kwargs: IndexLabel) -> pd.DataFrame:
+
+    def __call__(self, *args: IndexLabel,
+                 **kwargs: IndexLabel) -> pd.DataFrame:
         return self.obj.sel(*args, **kwargs)
 
     def __getitem__(self, index: Tuple[IndexLabel]) -> pd.DataFrame:
@@ -211,15 +211,16 @@ class LocIndexer(Indexer):
                 columns = [columns]
             if not all([c in self.obj.columns for c in columns]):
                 if not isinstance(index, tuple):
-                    index = (index,)
+                    index = (index, )
                 index = index + tuple(columns)
                 columns = None
 
-        elif isinstance(index, tuple) and len(index) == len(self.obj.columns) + 1:
+        elif isinstance(index,
+                        tuple) and len(index) == len(self.obj.columns) + 1:
             index, columns = index[:-1], index[-1]
 
         if not isinstance(index, tuple):
-            index = (index,)
+            index = (index, )
 
         df = self.obj.sel(*index)
 
@@ -228,9 +229,10 @@ class LocIndexer(Indexer):
 
         return df
 
-    def __setitem__(self, key: Any, value: Union[dict, BaseSchema]) -> BaseSchema:
+    def __setitem__(self, key: Any, value: Union[dict,
+                                                 BaseSchema]) -> BaseSchema:
         if not isinstance(key, tuple):
-            key = (key,)
+            key = (key, )
 
         if isinstance(value, self.obj.schema):
             value = value.dict()
@@ -242,21 +244,21 @@ class LocIndexer(Indexer):
 
 
 class AtIndexer(Indexer):
+
     def __getitem__(self, key: Tuple[Tuple[IndexLabel, ...], str]) -> Any:
 
         if not (isinstance(key, tuple) and len(key) == 2):
-            raise KeyError(
-                "ill-defined location. Specify "
-                ".at[index,column] where index can be a tuple."
-            )
+            raise KeyError("ill-defined location. Specify "
+                           ".at[index,column] where index can be a tuple.")
 
         index, column = key
 
         if column not in self.obj.columns:
-            raise KeyError(f"{column} not found. Valid columns are: {self.obj.columns}")
+            raise KeyError(
+                f"{column} not found. Valid columns are: {self.obj.columns}")
 
         if not isinstance(index, tuple):
-            index = (index,)
+            index = (index, )
 
         if any([isinstance(idx, (slice, list, type(None))) for idx in index]):
             raise KeyError(f"{index} is not unique index.")

@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 
 
 class BaseDataQuery(ABC):
+
     @abstractmethod
     def apply(self):
         pass
@@ -15,6 +16,7 @@ class DatasourceInterface(ABC):
 
     @classmethod
     def register_interface(cls, source_type, interface=None):
+
         def wrapper(interface):
             if isinstance(source_type, tuple):
                 for t in source_type:
@@ -23,8 +25,7 @@ class DatasourceInterface(ABC):
 
             if source_type in cls._INTERFACES:
                 raise ValueError(
-                    f"Interface for source {source_type} already registered."
-                )
+                    f"Interface for source {source_type} already registered.")
             cls._INTERFACES[source_type] = interface
             return interface
 
@@ -37,8 +38,7 @@ class DatasourceInterface(ABC):
                 return cls._INTERFACES[type_](source, *args, **kwargs)
 
         raise NotImplementedError(
-            f"No implementation for data source of type {type(source)}"
-        )
+            f"No implementation for data source of type {type(source)}")
 
     @abstractmethod
     def compile_query(self, index, label):

@@ -1,10 +1,13 @@
-import rframe
-import unittest
 import os
-import pymongo
-import pandas as pd
+import unittest
 from typing import List
-from hypothesis import settings, given, assume, strategies as st
+
+import pandas as pd
+import pymongo
+from hypothesis import assume, given, settings
+from hypothesis import strategies as st
+
+import rframe
 
 from .test_schema import *
 
@@ -41,7 +44,10 @@ class TestMongo(unittest.TestCase):
         doc_found = doc.find_one(self.collection, **doc.index_labels)
         assert doc.same_values(doc_found)
 
-    @given(st.lists(st.builds(SimpleSchema), unique_by=lambda x: x.index, min_size=1))
+    @given(
+        st.lists(st.builds(SimpleSchema),
+                 unique_by=lambda x: x.index,
+                 min_size=1))
     def test_frame(self, docs: List[SimpleSchema]):
         self.collection.delete_many({})
         rf = rframe.RemoteFrame(SimpleSchema, self.collection)
@@ -53,10 +59,10 @@ class TestMongo(unittest.TestCase):
 
     @given(
         st.lists(
-            st.builds(InterpolatingSchema).filter(lambda x: abs(x.index) < 2**7),
+            st.builds(InterpolatingSchema).filter(
+                lambda x: abs(x.index) < 2**7),
             unique_by=lambda x: x.index,
             min_size=2,
-        )
-    )
+        ))
     def test_interpolated(self, docs: InterpolatingSchema):
         pass

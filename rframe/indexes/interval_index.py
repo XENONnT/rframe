@@ -1,14 +1,14 @@
-import pandas as pd
-
 from typing import Iterable, Mapping
+
+import pandas as pd
 from pydantic import ValidationError
 
-from .types import Interval, TimeInterval
 from .base import BaseIndex
+from .types import Interval, TimeInterval
 
 
 class IntervalIndex(BaseIndex):
-    __slots__ = BaseIndex.__slots__ + ("closed",)
+    __slots__ = BaseIndex.__slots__ + ("closed", )
 
     def __set_name__(self, owner, name):
         super().__set_name__(owner, name)
@@ -48,8 +48,7 @@ class IntervalIndex(BaseIndex):
         else:
             raise TypeError(
                 f"{self.name} must be a Mapping,Interval"
-                "or Iterable of length 2, got {type(label)} instead."
-            )
+                "or Iterable of length 2, got {type(label)} instead.")
 
         label = pd.Interval(left, right, closed=self.closed)
         return label

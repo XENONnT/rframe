@@ -1,7 +1,8 @@
-import pandas as pd
 from typing import Dict, List
+
+import pandas as pd
 from pydantic import BaseModel
-from pydantic.fields import ModelField, FieldInfo
+from pydantic.fields import FieldInfo, ModelField
 
 from .indexes import BaseIndex, Index, MultiIndex
 from .interfaces import get_interface
@@ -12,13 +13,17 @@ class InsertionError(Exception):
 
 
 class BaseSchema(BaseModel):
+
     @classmethod
     def default_datasource(cls):
         raise NotImplementedError
 
     @classmethod
     def field_info(cls) -> Dict[str, FieldInfo]:
-        return {name: field.field_info for name, field in cls.__fields__.items()}
+        return {
+            name: field.field_info
+            for name, field in cls.__fields__.items()
+        }
 
     @classmethod
     def get_index_fields(cls) -> Dict[str, ModelField]:

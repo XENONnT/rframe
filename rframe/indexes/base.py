@@ -1,17 +1,18 @@
-from pydantic import BaseModel
-import pytz
 import numbers
-import pandas as pd
-from pydantic.fields import FieldInfo
+from datetime import datetime
 from typing import Any
 
-from datetime import datetime
+import pandas as pd
+import pytz
+from pydantic import BaseModel
+from pydantic.fields import FieldInfo
 
 from rframe.utils import singledispatchmethod
 
 
 class BaseIndex(FieldInfo):
-    __slots__ = FieldInfo.__slots__ + ("name", "schema", "field", "nullable", "unique")
+    __slots__ = FieldInfo.__slots__ + ("name", "schema", "field", "nullable",
+                                       "unique")
 
     def __init__(self, default: Any = ..., **kwargs: Any) -> None:
         self.nullable = kwargs.pop("nullable", True)
@@ -81,7 +82,8 @@ class BaseIndex(FieldInfo):
     @_coerce.register(datetime)
     def _coerce_datetime(self, type_, value):
         if isinstance(value, datetime):
-            if value.tzinfo is not None and value.tzinfo.utcoffset(value) is not None:
+            if value.tzinfo is not None and value.tzinfo.utcoffset(
+                    value) is not None:
                 value = value.astimezone(pytz.utc)
             else:
                 value = value.replace(tzinfo=pytz.utc)

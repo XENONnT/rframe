@@ -1,11 +1,11 @@
-from typing import Callable, Union
 import datetime
+from typing import Callable, Union
+
 import numpy as np
 from scipy.interpolate import interp1d
 
-
-from .base import BaseIndex
 from ..utils import singledispatch
+from .base import BaseIndex
 
 
 def nn_interpolate(x, xs, ys):
@@ -22,9 +22,11 @@ def interpolater(x, xs, ys, kind="linear"):
 @interpolater.register(int)
 def interpolate_number(x, xs, ys, kind="linear"):
     if isinstance(ys[0], (float, int)):
-        func = interp1d(
-            xs, ys, fill_value=(ys[0], ys[-1]), bounds_error=False, kind=kind
-        )
+        func = interp1d(xs,
+                        ys,
+                        fill_value=(ys[0], ys[-1]),
+                        bounds_error=False,
+                        kind=kind)
         return func(x).item()
     return nn_interpolate(x, xs, ys)
 
@@ -44,9 +46,12 @@ class InterpolatingIndex(BaseIndex):
     inclusive: bool = False
     extrapolate: Union[bool, Callable] = False
 
-    def __init__(
-        self, kind="linear", neighbours=1, inclusive=False, extrapolate=False, **kwargs
-    ):
+    def __init__(self,
+                 kind="linear",
+                 neighbours=1,
+                 inclusive=False,
+                 extrapolate=False,
+                 **kwargs):
         super().__init__(**kwargs)
         self.kind = kind
         self.neighbours = neighbours
@@ -66,13 +71,17 @@ class InterpolatingIndex(BaseIndex):
             return [d for val in label for d in self.reduce(docs, val)]
 
         label = self.validate_label(label)
-        x = label.timestamp() if isinstance(label, datetime.datetime) else label
+        x = label.timestamp() if isinstance(label,
+                                            datetime.datetime) else label
 
         xs = [self.validate_label(d[self.name]) for d in docs]
 
         # just convert all datetimes to timestamps to avoid complexity
         # FIXME: maybe properly handle timezones instead
-        xs = [xi.timestamp() if isinstance(xi, datetime.datetime) else xi for xi in xs]
+        xs = [
+            xi.timestamp() if isinstance(xi, datetime.datetime) else xi
+            for xi in xs
+        ]
 
         new_document = dict(nn_interpolate(x, xs, docs))
         new_document[self.name] = label
@@ -83,7 +92,8 @@ class InterpolatingIndex(BaseIndex):
                 new_document[yname] = interpolater(x, xs, ys, kind=self.kind)
             return [new_document]
 
-        if (x > max(xs) and self.can_extrapolate(new_document)) or x == max(xs):
+        if (x > max(xs)
+                and self.can_extrapolate(new_document)) or x == max(xs):
             return [new_document]
 
         return []

@@ -1,5 +1,7 @@
-from rframe import BaseSchema, Index, InterpolatingIndex, Interval, IntervalIndex
 from datetime import datetime
+
+from rframe import (BaseSchema, Index, InterpolatingIndex, Interval,
+                    IntervalIndex)
 
 
 class SimpleSchema(BaseSchema):

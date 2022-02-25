@@ -1,10 +1,10 @@
 import datetime
-import pandas as pd
 from typing import Mapping, TypeVar
-from numpy import isin
 
-from pydantic import BaseModel
+import pandas as pd
 import pydantic
+from numpy import isin
+from pydantic import BaseModel
 
 LabelType = TypeVar("LabelType", int, str, datetime.datetime)
 
