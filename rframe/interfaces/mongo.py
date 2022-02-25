@@ -78,7 +78,6 @@ try:
 
     @DatasourceInterface.register_interface(pymongo.collection.Collection)
     class MongoInterface(DatasourceInterface):
-        
         @singledispatchmethod
         def compile_query(self, index, label):
             raise NotImplementedError(
@@ -143,14 +142,14 @@ try:
             if isinstance(label, list):
                 # support querying multiple values
                 # in the same request
-                match = {name: {"$in": label} }
+                match = {name: {"$in": label}}
 
             elif isinstance(label, dict):
-                match = {f"{name}.{k}": v for k,v in label.items()}
+                match = {f"{name}.{k}": v for k, v in label.items()}
 
             pipeline = []
             if label is not None:
-                pipeline.append({ "$match": match })
+                pipeline.append({"$match": match})
 
             return MongoAggregation(pipeline)
 
@@ -186,7 +185,7 @@ try:
             """
             if not isinstance(intervals, list):
                 intervals = [intervals]
-            
+
             queries = []
             for interval in intervals:
                 if interval is None:
@@ -255,6 +254,10 @@ try:
             collection.ensure_index([(name, order) for name in names])
 
 except ImportError:
+    class MongoInterface:
+        def __init__(self) -> None:
+            raise TypeError('Cannot use mongo interface with pymongo installed.')
+
     warn("Pymongo not found, cannot register mongodb interface.")
 
 
@@ -281,10 +284,10 @@ def mongo_overlap_query(index, interval):
     if isinstance(interval, tuple):
         left, right = interval
     elif isinstance(interval, dict):
-        left, right = interval['left'], interval['right']
+        left, right = interval["left"], interval["right"]
     elif isinstance(interval, slice):
         left, right = interval.start, interval.stop
-    elif hasattr(interval, 'left') and hasattr(interval, 'right'):
+    elif hasattr(interval, "left") and hasattr(interval, "right"):
         left, right = interval.left, interval.right
     else:
         left = right = interval

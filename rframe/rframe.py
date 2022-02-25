@@ -3,21 +3,20 @@
 import re
 from datetime import datetime
 from pydantic.typing import NoneType
-import pymongo
 import pandas as pd
 
-from typing import Any, Dict, List, Type, Union, Tuple
+from typing import Any, List, Type, Union, Tuple
 
-from rframe.interfaces import get_interface
 from .schema import BaseSchema, InsertionError
-from .utils import singledispatchmethod
 from .interfaces import get_interface
 
 IndexLabel = Union[int, float, datetime, str, slice, NoneType, List]
 
+
 def camel_to_snake(name):
     name = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", name)
     return re.sub("([a-z0-9])([A-Z])", r"\1_\2", name).lower()
+
 
 class RemoteFrame:
     """Implement basic indexing features similar to a pandas dataframe
@@ -41,7 +40,7 @@ class RemoteFrame:
 
     @property
     def name(self):
-        if hasattr(self, '_NAME'):
+        if hasattr(self, "_NAME"):
             return self._NAME
         return camel_to_snake(self.schema.__name__)
 
@@ -65,7 +64,8 @@ class RemoteFrame:
     def at(self):
         return AtIndexer(self)
 
-    def sel_records(self, *args: IndexLabel, **kwargs: IndexLabel) -> List[dict]:
+    def sel_records(self, *args: IndexLabel,
+                          **kwargs: IndexLabel) -> List[dict]:
         """Queries the DB and returns the results as a list of dicts"""
         index_fields = self.index.names
         labels = {name: lbl for name, lbl in zip(index_fields, args)}
@@ -146,10 +146,12 @@ class RemoteFrame:
         if name != "columns" and name in self.columns:
             return self[name]
         raise AttributeError(name)
-
+        
     def __repr__(self) -> str:
         return (
-            f"RemoteDataFrame(" f"index={self.index.names}," f"columns={self.columns})"
+            f"{self.__class__.__name__}("
+            f"index={self.index.names},"
+            f"columns={self.columns})"
         )
 
 

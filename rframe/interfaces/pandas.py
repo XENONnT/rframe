@@ -1,18 +1,20 @@
 from typing import List
 from itertools import product
+
+import pandas as pd
+
 from typing import Any
 from warnings import warn
-import pandas as pd
 from pydantic import BaseModel
 from datetime import datetime
-
 from rframe.indexes.types import Interval
+
 from .base import BaseDataQuery, DatasourceInterface
 from ..utils import singledispatchmethod
 from ..indexes import Index, InterpolatingIndex, IntervalIndex, MultiIndex
 
-class PandasBaseQuery(BaseDataQuery):
 
+class PandasBaseQuery(BaseDataQuery):
     def __init__(self, column: str, label: Any) -> None:
         super().__init__()
         self.column = column
@@ -25,10 +27,10 @@ class PandasBaseQuery(BaseDataQuery):
         df = self.apply_selection(df)
         if df.index.names:
             df = df.reset_index()
-        return df.to_dict(orient='records')
+        return df.to_dict(orient="records")
+
 
 class PandasSimpleQuery(PandasBaseQuery):
-        
     def apply_selection(self, df):
         if self.label is None:
             return df
@@ -39,19 +41,19 @@ class PandasSimpleQuery(PandasBaseQuery):
         label = self.label
         if isinstance(label, slice):
             if label.step is None:
-                ge = df[self.column]>=label.start
-                lt = df[self.column]<label.stop
+                ge = df[self.column] >= label.start
+                lt = df[self.column] < label.stop
                 mask = ge and lt
             else:
                 label = list(range(label.start, label.stop, label.step))
         if isinstance(label, list):
             mask = df[self.column].isin(label)
         else:
-            mask = df[self.column]==label
+            mask = df[self.column] == label
         return df.loc[mask]
 
+
 class PandasIntervalQuery(PandasBaseQuery):
-        
     def apply_selection(self, df):
         if self.label is None:
             return df
@@ -65,10 +67,10 @@ class PandasIntervalQuery(PandasBaseQuery):
         if isinstance(interval, tuple):
             left, right = interval
         elif isinstance(interval, dict):
-            left, right = interval['left'], interval['right']
+            left, right = interval["left"], interval["right"]
         elif isinstance(interval, slice):
             left, right = interval.start, interval.stop
-        elif hasattr(interval, 'left') and hasattr(interval, 'right'):
+        elif hasattr(interval, "left") and hasattr(interval, "right"):
             left, right = interval.left, interval.right
         else:
             left = right = interval
@@ -78,6 +80,7 @@ class PandasIntervalQuery(PandasBaseQuery):
             right = pd.to_datetime(right)
         interval = pd.Interval(left, right)
         return df[df.index.overlaps(interval)]
+
 
 class PandasInterpolationQuery(PandasBaseQuery):
     def apply_selection(self, df, limit=1):
@@ -92,20 +95,21 @@ class PandasInterpolationQuery(PandasBaseQuery):
         rows = []
         # select all values before requested values
         idx_column = df[self.column]
-        before = df[idx_column<=self.label]
+        before = df[idx_column <= self.label]
         if len(before):
             # if ther are values after `value`, we find the closest one
             before = before.sort_values(self.column, ascending=False).head(limit)
             rows.append(before)
 
         # select all values after requested values
-        after = df[idx_column>self.label]
+        after = df[idx_column > self.label]
         if len(after):
             # same as before
             after = after.sort_values(self.column, ascending=True).head(limit)
             rows.append(after)
 
         return pd.concat(rows)
+
 
 class PandasMultiQuery(PandasBaseQuery):
     def __init__(self, queries: List[PandasBaseQuery]) -> None:
@@ -126,7 +130,6 @@ class PandasMultiQuery(PandasBaseQuery):
 
 @DatasourceInterface.register_interface(pd.DataFrame)
 class PandasInterface(DatasourceInterface):
-
     @singledispatchmethod
     def compile_query(self, index, label):
         raise NotImplementedError(
@@ -153,7 +156,8 @@ class PandasInterface(DatasourceInterface):
             indexes = indexes.indexes
             labels = labels.values()
 
-        queries = [self.compile_query(idx, label)
-                     for idx,label in zip(indexes, labels)]
+        queries = [
+            self.compile_query(idx, label) for idx, label in zip(indexes, labels)
+        ]
 
         return PandasMultiQuery(queries)

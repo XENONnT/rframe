@@ -1,7 +1,7 @@
 import pandas as pd
 
 from typing import Iterable, Mapping
-from nbformat import ValidationError
+from pydantic import ValidationError
 
 from .types import Interval, TimeInterval
 from .base import BaseIndex

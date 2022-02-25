@@ -1,4 +1,3 @@
-import re
 import pandas as pd
 from typing import Dict, List
 from pydantic import BaseModel
@@ -13,7 +12,6 @@ class InsertionError(Exception):
 
 
 class BaseSchema(BaseModel):
-
     @classmethod
     def default_datasource(cls):
         raise NotImplementedError

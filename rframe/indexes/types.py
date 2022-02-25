@@ -1,5 +1,4 @@
 import datetime
-from email.policy import default
 import pandas as pd
 from typing import Mapping, TypeVar
 from numpy import isin
@@ -27,7 +26,7 @@ class Interval(BaseModel):
             left = v.get("left", None)
             right = v.get("right", None)
 
-        elif hasattr(v, 'left') and hasattr(v, 'left'):
+        elif hasattr(v, "left") and hasattr(v, "left"):
             left = v.left
             right = v.right
         else:
@@ -46,8 +45,9 @@ class Interval(BaseModel):
 
 
 class IntegerInterval(Interval):
-    left = pydantic.conint(ge=0, lt=int(2**32-1))
-    right = pydantic.conint(ge=0, lt=int(2**32-1))
+    left = pydantic.conint(ge=0, lt=int(2**32 - 1))
+    right = pydantic.conint(ge=0, lt=int(2**32 - 1))
+
 
 class TimeInterval(Interval):
     left: datetime.datetime

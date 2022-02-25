@@ -35,7 +35,7 @@ class DatasourceInterface(ABC):
         for type_ in type(source).mro():
             if type_ in cls._INTERFACES:
                 return cls._INTERFACES[type_](source, *args, **kwargs)
-    
+
         raise NotImplementedError(
             f"No implementation for data source of type {type(source)}"
         )
