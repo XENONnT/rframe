@@ -11,13 +11,12 @@ WRAPPER_ASSIGNMENTS = (
     "__doc__",
     "__annotations__",
 )
-WRAPPER_UPDATES = ("__dict__", )
+WRAPPER_UPDATES = ("__dict__",)
 
 
-def update_wrapper(wrapper,
-                   wrapped,
-                   assigned=WRAPPER_ASSIGNMENTS,
-                   updated=WRAPPER_UPDATES):
+def update_wrapper(
+    wrapper, wrapped, assigned=WRAPPER_ASSIGNMENTS, updated=WRAPPER_UPDATES
+):
     """Update a wrapper function to look like the wrapped function
     wrapper is the function to be updated
     wrapped is the original function
@@ -65,10 +64,8 @@ class singledispatchmethod:
         return self.dispatcher.register(cls, func=method)
 
     def __get__(self, obj, cls=None):
-
         def _method(*args, **kwargs):
-            class_ = args[0] if isinstance(args[0],
-                                           type) else args[0].__class__
+            class_ = args[0] if isinstance(args[0], type) else args[0].__class__
             method = self.dispatcher.dispatch(class_)
             return method.__get__(obj, cls)(*args, **kwargs)
 

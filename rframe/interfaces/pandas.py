@@ -1,12 +1,7 @@
 from datetime import datetime
-from itertools import product
 from typing import Any, List
-from warnings import warn
 
 import pandas as pd
-from pydantic import BaseModel
-
-from rframe.indexes.types import Interval
 
 from ..indexes import Index, InterpolatingIndex, IntervalIndex, MultiIndex
 from ..utils import singledispatchmethod
@@ -14,7 +9,6 @@ from .base import BaseDataQuery, DatasourceInterface
 
 
 class PandasBaseQuery(BaseDataQuery):
-
     def __init__(self, column: str, label: Any) -> None:
         super().__init__()
         self.column = column
@@ -31,7 +25,6 @@ class PandasBaseQuery(BaseDataQuery):
 
 
 class PandasSimpleQuery(PandasBaseQuery):
-
     def apply_selection(self, df):
         if self.label is None:
             return df
@@ -55,7 +48,6 @@ class PandasSimpleQuery(PandasBaseQuery):
 
 
 class PandasIntervalQuery(PandasBaseQuery):
-
     def apply_selection(self, df):
         if self.label is None:
             return df
@@ -85,7 +77,6 @@ class PandasIntervalQuery(PandasBaseQuery):
 
 
 class PandasInterpolationQuery(PandasBaseQuery):
-
     def apply_selection(self, df, limit=1):
         if self.label is None:
             return df
@@ -101,8 +92,7 @@ class PandasInterpolationQuery(PandasBaseQuery):
         before = df[idx_column <= self.label]
         if len(before):
             # if ther are values after `value`, we find the closest one
-            before = before.sort_values(self.column,
-                                        ascending=False).head(limit)
+            before = before.sort_values(self.column, ascending=False).head(limit)
             rows.append(before)
 
         # select all values after requested values
@@ -116,7 +106,6 @@ class PandasInterpolationQuery(PandasBaseQuery):
 
 
 class PandasMultiQuery(PandasBaseQuery):
-
     def __init__(self, queries: List[PandasBaseQuery]) -> None:
         self.queries = queries
 
@@ -135,7 +124,6 @@ class PandasMultiQuery(PandasBaseQuery):
 
 @DatasourceInterface.register_interface(pd.DataFrame)
 class PandasInterface(DatasourceInterface):
-
     @singledispatchmethod
     def compile_query(self, index, label):
         raise NotImplementedError(
@@ -163,8 +151,7 @@ class PandasInterface(DatasourceInterface):
             labels = labels.values()
 
         queries = [
-            self.compile_query(idx, label)
-            for idx, label in zip(indexes, labels)
+            self.compile_query(idx, label) for idx, label in zip(indexes, labels)
         ]
 
         return PandasMultiQuery(queries)

@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Mapping
 
 import pandas as pd
 from pydantic import BaseModel
@@ -13,17 +13,13 @@ class InsertionError(Exception):
 
 
 class BaseSchema(BaseModel):
-
     @classmethod
     def default_datasource(cls):
         raise NotImplementedError
 
     @classmethod
     def field_info(cls) -> Dict[str, FieldInfo]:
-        return {
-            name: field.field_info
-            for name, field in cls.__fields__.items()
-        }
+        return {name: field.field_info for name, field in cls.__fields__.items()}
 
     @classmethod
     def get_index_fields(cls) -> Dict[str, ModelField]:
@@ -65,14 +61,13 @@ class BaseSchema(BaseModel):
         field_info.__set_name__(cls, name)
         return field_info
 
-    @property
-    def index_labels(self):
-        data = self.dict()
-        return {k: data[k] for k in self.get_index_fields()}
+    @classmethod
+    def rframe(cls, datasource=None):
+        import rframe
 
-    @property
-    def index_labels_tuple(self):
-        return tuple(v for v in self.index_labels.values())
+        if datasource is None:
+            datasource = cls.default_datasource()
+        return rframe.RemoteFrame(cls, datasource)
 
     @classmethod
     def compile_query(cls, datastore, **labels) -> List["BaseSchema"]:
@@ -131,10 +126,39 @@ class BaseSchema(BaseModel):
             return docs[0]
 
     @classmethod
+    def from_pandas(cls, record):
+        if isinstance(record, list):
+            return [cls.from_pandas(d) for d in record]
+        if isinstance(record, pd.DataFrame):
+            return [cls.from_pandas(d) for d in record.to_dict(orient="records")]
+
+        if not isinstance(record, Mapping):
+            raise TypeError(
+                "Record must be of type Mapping,"
+                "List[Mapping] or DataFrame],"
+                f"got {type(record)}"
+            )
+        data = dict(record)
+        for name in cls.get_index_fields():
+            index = cls.index_for(name)
+            label = record.get(name, None)
+            data[name] = index.to_pandas(label)
+        return cls(**data)
+
+    @classmethod
     def ensure_index(cls, datastore):
         interface = get_interface(datastore)
         names = list(cls.get_index_fields())
         return interface.ensure_index(datastore, names)
+
+    @property
+    def index_labels(self):
+        data = self.dict()
+        return {k: data[k] for k in self.get_index_fields()}
+
+    @property
+    def index_labels_tuple(self):
+        return tuple(v for v in self.index_labels.values())
 
     def save(self, datastore):
         interface = get_interface(datastore)

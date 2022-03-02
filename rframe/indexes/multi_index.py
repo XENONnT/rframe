@@ -1,7 +1,6 @@
 from collections.abc import Mapping
 
 import toolz
-from numpy import isin
 
 from .base import BaseIndex
 

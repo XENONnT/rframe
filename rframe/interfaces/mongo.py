@@ -79,7 +79,6 @@ try:
 
     @DatasourceInterface.register_interface(pymongo.collection.Collection)
     class MongoInterface(DatasourceInterface):
-
         @singledispatchmethod
         def compile_query(self, index, label):
             raise NotImplementedError(
@@ -96,10 +95,7 @@ try:
             return MongoAggregation(pipeline)
 
         def product_multi_query(self, indexes, labels):
-            labels = [
-                label if isinstance(label, list) else [label]
-                for label in labels
-            ]
+            labels = [label if isinstance(label, list) else [label] for label in labels]
             aggs = []
             for label_vals in product(*labels):
                 agg = self.simple_multi_query(indexes, label_vals)
@@ -195,8 +191,7 @@ try:
             for interval in intervals:
                 if interval is None:
                     continue
-                if isinstance(interval, tuple) and all(
-                    [i is None for i in interval]):
+                if isinstance(interval, tuple) and all([i is None for i in interval]):
                     continue
 
                 query = mongo_overlap_query(index, interval)
@@ -219,11 +214,13 @@ try:
                     },
                 ]
             else:
-                pipeline = [{
-                    "$project": {
-                        "_id": 0,
-                    },
-                }]
+                pipeline = [
+                    {
+                        "$project": {
+                            "_id": 0,
+                        },
+                    }
+                ]
 
             return MongoAggregation(pipeline)
 
@@ -249,8 +246,7 @@ try:
                 )
                 return doc
             except Exception as e:
-                raise InsertionError(
-                    f"Mongodb has rejected this insertion:\n {e} ")
+                raise InsertionError(f"Mongodb has rejected this insertion:\n {e} ")
 
         def insert_many(self, collection: Collection, docs):
             raise NotImplementedError
@@ -261,10 +257,8 @@ try:
 except ImportError:
 
     class MongoInterface:
-
         def __init__(self) -> None:
-            raise TypeError(
-                'Cannot use mongo interface with pymongo installed.')
+            raise TypeError("Cannot use mongo interface with pymongo installed.")
 
     warn("Pymongo not found, cannot register mongodb interface.")
 
@@ -304,33 +298,25 @@ def mongo_overlap_query(index, interval):
     # on one or both sides
     conditions = []
     if left is not None:
-        conditions.append({
-            "$or": [
-                # if the right side of the queried interval is
-                # None, treat it as inf
-                {
-                    f"{index.name}.right": None
-                },
-                {
-                    f"{index.name}.right": {
-                        gt_op: left
-                    }
-                },
-            ]
-        })
+        conditions.append(
+            {
+                "$or": [
+                    # if the right side of the queried interval is
+                    # None, treat it as inf
+                    {f"{index.name}.right": None},
+                    {f"{index.name}.right": {gt_op: left}},
+                ]
+            }
+        )
     if right is not None:
-        conditions.append({
-            "$or": [
-                {
-                    f"{index.name}.left": None
-                },
-                {
-                    f"{index.name}.left": {
-                        lt_op: right
-                    }
-                },
-            ]
-        })
+        conditions.append(
+            {
+                "$or": [
+                    {f"{index.name}.left": None},
+                    {f"{index.name}.left": {lt_op: right}},
+                ]
+            }
+        )
     if conditions:
         return {
             "$and": conditions,
@@ -343,21 +329,9 @@ def mongo_before_query(name, value, limit=1):
     if isinstance(limit, list):
         return mongo_grouped_before_query(name, value, limit)
     return [
-        {
-            "$match": {
-                f"{name}": {
-                    "$lte": value
-                }
-            }
-        },
-        {
-            "$sort": {
-                f"{name}": -1
-            }
-        },
-        {
-            "$limit": limit
-        },
+        {"$match": {f"{name}": {"$lte": value}}},
+        {"$sort": {f"{name}": -1}},
+        {"$limit": limit},
     ]
 
 
@@ -365,83 +339,33 @@ def mongo_after_query(name, value, limit=1):
     if isinstance(limit, list):
         return mongo_grouped_after_query(name, value, limit)
     return [
-        {
-            "$match": {
-                f"{name}": {
-                    "$gte": value
-                }
-            }
-        },
-        {
-            "$sort": {
-                f"{name}": 1
-            }
-        },
-        {
-            "$limit": limit
-        },
+        {"$match": {f"{name}": {"$gte": value}}},
+        {"$sort": {f"{name}": 1}},
+        {"$limit": limit},
     ]
 
 
 def mongo_grouped_before_query(name, value, groups):
 
     return [
-        {
-            "$match": {
-                f"{name}": {
-                    "$lte": value
-                }
-            }
-        },
-        {
-            "$sort": {
-                f"{name}": -1
-            }
-        },
-        {
-            "$group": {
-                "_id": [f"${grp}" for grp in groups],
-                "doc": {
-                    "$first": "$$ROOT"
-                }
-            }
-        },
+        {"$match": {f"{name}": {"$lte": value}}},
+        {"$sort": {f"{name}": -1}},
+        {"$group": {"_id": [f"${grp}" for grp in groups], "doc": {"$first": "$$ROOT"}}},
         {
             # make the documents the new root, discarding the groupby value
-            "$replaceRoot": {
-                "newRoot": "$doc"
-            },
+            "$replaceRoot": {"newRoot": "$doc"},
         },
     ]
 
 
 def mongo_grouped_after_query(name, value, groups):
     return [
-        {
-            "$match": {
-                f"{name}": {
-                    "$gte": value
-                }
-            }
-        },
-        {
-            "$sort": {
-                f"{name}": 1
-            }
-        },
-        {
-            "$group": {
-                "_id": [f"${grp}" for grp in groups],
-                "doc": {
-                    "$first": "$$ROOT"
-                }
-            }
-        },
+        {"$match": {f"{name}": {"$gte": value}}},
+        {"$sort": {f"{name}": 1}},
+        {"$group": {"_id": [f"${grp}" for grp in groups], "doc": {"$first": "$$ROOT"}}},
         {
             # make the documents the new root, discarding the groupby value
-            "$replaceRoot": {
-                "newRoot": "$doc"
-            },
+            "$replaceRoot": {"newRoot": "$doc"},
         },
     ]
 
@@ -452,46 +376,30 @@ def mongo_closest_query(name, value):
             "$addFields": {
                 # Add a field splitting the documents into
                 # before and after the value of interest
-                "_after": {
-                    "$gte": [f"${name}", value]
-                },
+                "_after": {"$gte": [f"${name}", value]},
                 # Add a field with the distance to the value of interest
-                "_diff": {
-                    "$abs": {
-                        "$subtract": [value, f"${name}"]
-                    }
-                },
+                "_diff": {"$abs": {"$subtract": [value, f"${name}"]}},
             }
         },
         {
             # sort in ascending order by distance
-            "$sort": {
-                "_diff": 1
-            },
+            "$sort": {"_diff": 1},
         },
         {
             # first group by whether document is before or after the value
             # the take the first document in each group
             "$group": {
                 "_id": "$_after",
-                "doc": {
-                    "$first": "$$ROOT"
-                },
+                "doc": {"$first": "$$ROOT"},
             }
         },
         {
             # make the documents the new root, discarding the groupby value
-            "$replaceRoot": {
-                "newRoot": "$doc"
-            },
+            "$replaceRoot": {"newRoot": "$doc"},
         },
         {
             # drop the extra fields, they are no longer needed
-            "$project": {
-                "_diff": 0,
-                "_after": 0,
-                "_id": 0
-            },
+            "$project": {"_diff": 0, "_after": 0, "_id": 0},
         },
     ]
 
@@ -512,16 +420,10 @@ def merge_pipelines(pipelines):
             }
         },
         # we just want a single list of documents
-        {
-            "$unwind": "$union"
-        },
+        {"$unwind": "$union"},
         # move list of documents to the root of the result
         # so we just get a nice list of documents
-        {
-            "$replaceRoot": {
-                "newRoot": "$union"
-            }
-        },
+        {"$replaceRoot": {"newRoot": "$union"}},
         {
             "$project": {
                 "_id": 0,

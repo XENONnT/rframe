@@ -8,7 +8,7 @@ from .types import Interval, TimeInterval
 
 
 class IntervalIndex(BaseIndex):
-    __slots__ = BaseIndex.__slots__ + ("closed", )
+    __slots__ = BaseIndex.__slots__ + ("closed",)
 
     def __set_name__(self, owner, name):
         super().__set_name__(owner, name)
@@ -17,8 +17,6 @@ class IntervalIndex(BaseIndex):
             raise ValidationError(
                 f"{name} field is a interval index but is not of type {type(Interval)}"
             )
-        # if not self.field.sub_fields:
-        #     raise ValidationError(f'You must specify a label type for the {name} index')
 
     def __init__(self, closed="right", **kwargs):
         super().__init__(**kwargs)
@@ -48,7 +46,8 @@ class IntervalIndex(BaseIndex):
         else:
             raise TypeError(
                 f"{self.name} must be a Mapping,Interval"
-                "or Iterable of length 2, got {type(label)} instead.")
+                "or Iterable of length 2, got {type(label)} instead."
+            )
 
         label = pd.Interval(left, right, closed=self.closed)
         return label

@@ -23,7 +23,7 @@ if os.path.exists(readme_path):
 setup(
     long_description=readme,
     name="rframe",
-    version="0.1.4",
+    version="0.1.5",
     description="Top-level package for rframe.",
     python_requires="<3.11,>=3.8",
     project_urls={"homepage": "https://github.com/jmosbacher/rframe"},
