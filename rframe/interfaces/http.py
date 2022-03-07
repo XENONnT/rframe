@@ -1,7 +1,5 @@
 from typing import Union
 
-from dephell_versioning import BaseScheme
-
 from ..http_client import BaseHttpClient
 from ..indexes import Index, InterpolatingIndex, IntervalIndex, MultiIndex
 from ..utils import singledispatchmethod
