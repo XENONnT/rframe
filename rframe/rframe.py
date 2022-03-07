@@ -40,8 +40,6 @@ class RemoteFrame:
 
     @property
     def name(self):
-        if hasattr(self, "_NAME"):
-            return self._NAME
         return camel_to_snake(self.schema.__name__)
 
     @property

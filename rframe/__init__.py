@@ -7,3 +7,4 @@ __version__ = "0.1.6"
 from .indexes import *
 from .rframe import RemoteFrame
 from .schema import BaseSchema
+from .http_client import BaseHttpClient

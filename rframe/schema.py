@@ -160,7 +160,9 @@ class BaseSchema(BaseModel):
     def index_labels_tuple(self):
         return tuple(v for v in self.index_labels.values())
 
-    def save(self, datastore):
+    def save(self, datastore=None):
+        if datastore is None:
+            datastore = self.default_datasource()
         interface = get_interface(datastore)
         existing = self.find(datastore, **self.index_labels)
         if existing:

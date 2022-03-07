@@ -79,7 +79,9 @@ class InterpolatingIndex(BaseIndex):
 
         if len(xs) > 1 and max(xs) >= x >= min(xs):
             for yname in self.schema.get_column_fields():
-                ys = [d[yname] for d in docs]
+                ys = [d[yname] for d in docs if yname in d]
+                if len(ys) != len(xs):
+                    continue
                 new_document[yname] = interpolater(x, xs, ys, kind=self.kind)
             return [new_document]
 
