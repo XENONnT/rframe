@@ -5,5 +5,5 @@ from .pandas import PandasInterface
 from .http import HttpInterface
 
 
-def get_interface(source) -> DatasourceInterface:
-    return DatasourceInterface.from_source(source)
+def get_interface(source, **kwargs) -> DatasourceInterface:
+    return DatasourceInterface.from_source(source, **kwargs)

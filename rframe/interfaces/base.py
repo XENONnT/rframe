@@ -1,9 +1,12 @@
 from abc import ABC, abstractmethod
 
+from rframe import interfaces
+
 
 class BaseDataQuery(ABC):
+
     @abstractmethod
-    def apply(self):
+    def execute(self):
         pass
 
 
@@ -32,6 +35,17 @@ class DatasourceInterface(ABC):
 
     @classmethod
     def from_source(cls, source, *args, **kwargs):
+        if isinstance(source, str):
+            for klass in cls._INTERFACES.values():
+                try:
+                    interface = klass.from_url(source, *args, **kwargs)
+                    break
+                except NotImplementedError:
+                    pass
+            else:
+                raise ValueError(f"No interface found for source {source}")
+            return interface
+  
         for type_ in type(source).mro():
             if type_ in cls._INTERFACES:
                 return cls._INTERFACES[type_](source, *args, **kwargs)
@@ -40,12 +54,16 @@ class DatasourceInterface(ABC):
             f"No implementation for data source of type {type(source)}"
         )
 
+    @classmethod
+    def from_url(cls, url: str, *args, **kwargs):
+        raise NotImplementedError
+
     @abstractmethod
     def compile_query(self, index, label):
         pass
 
-    def insert(self, source, doc):
+    def insert(self, doc):
         raise NotImplementedError
 
-    def insert_many(self, source, docs):
+    def insert_many(self, docs):
         raise NotImplementedError

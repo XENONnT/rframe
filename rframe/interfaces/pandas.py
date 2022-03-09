@@ -9,16 +9,16 @@ from .base import BaseDataQuery, DatasourceInterface
 
 
 class PandasBaseQuery(BaseDataQuery):
-    def __init__(self, column: str, label: Any) -> None:
-        super().__init__()
+    def __init__(self, df, column: str, label: Any) -> None:
+        self.df = df
         self.column = column
         self.label = label
 
     def apply_selection(self, df):
         raise NotImplementedError
 
-    def apply(self, df):
-        df = self.apply_selection(df)
+    def execute(self):
+        df = self.apply_selection(self.df)
         if df.index.names:
             df = df.reset_index()
         return df.to_dict(orient="records")
@@ -124,6 +124,21 @@ class PandasMultiQuery(PandasBaseQuery):
 
 @DatasourceInterface.register_interface(pd.DataFrame)
 class PandasInterface(DatasourceInterface):
+    
+    @classmethod
+    def from_url(cls, url: str, **kwargs):
+        if url.endswith(".csv"):
+            df = pd.read_csv(url, **kwargs)
+            return cls(df)
+        elif url.endswith(".pq"):
+            df = pd.read_parquet(url, **kwargs)
+            return cls(df)
+        elif url.endswith(".pkl"):
+            df = pd.read_pickle(url, **kwargs)
+            return cls(df)
+        
+        raise NotImplementedError
+        
     @singledispatchmethod
     def compile_query(self, index, label):
         raise NotImplementedError(
@@ -132,15 +147,15 @@ class PandasInterface(DatasourceInterface):
 
     @compile_query.register(Index)
     def simple_query(self, index, label):
-        return PandasSimpleQuery(index.name, label)
+        return PandasSimpleQuery(self.source, index.name, label)
 
     @compile_query.register(IntervalIndex)
     def interval_query(self, index, label):
-        return PandasIntervalQuery(index.name, label)
+        return PandasIntervalQuery(self.source, index.name, label)
 
     @compile_query.register(InterpolatingIndex)
     def interpolating_query(self, index, label):
-        return PandasInterpolationQuery(index.name, label)
+        return PandasInterpolationQuery(self.source, self.source, index.name, label)
 
     @compile_query.register(list)
     @compile_query.register(tuple)
@@ -154,4 +169,4 @@ class PandasInterface(DatasourceInterface):
             self.compile_query(idx, label) for idx, label in zip(indexes, labels)
         ]
 
-        return PandasMultiQuery(queries)
+        return PandasMultiQuery(self.source, queries)

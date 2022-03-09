@@ -70,7 +70,20 @@ class BaseSchema(BaseModel):
         return rframe.RemoteFrame(cls, datasource)
 
     @classmethod
-    def compile_query(cls, datastore, **labels) -> List["BaseSchema"]:
+    def extract_labels(cls, **kwargs):
+        labels = {}
+        for name in cls.__fields__:
+            label = kwargs.pop(name, None)
+            if label is not None:
+                labels[name] = label           
+        return labels, kwargs
+
+    @classmethod
+    def compile_query(cls, datastore, **labels):
+        labels, kwargs = cls.extract_labels(**labels)
+        for name in cls.get_index_fields():
+            if name not in labels:
+                labels[name] = None
         indexes = [cls.index_for(name) for name in labels]
         if len(indexes) == 1:
             index = indexes[0]
@@ -80,13 +93,16 @@ class BaseSchema(BaseModel):
             label = labels
 
         label = index.validate_label(label)
+        interface = get_interface(datastore, **kwargs)
 
-        interface = get_interface(datastore)
-
-        return interface.compile_query(index, label)
+        query = interface.compile_query(index, label)
+        return query
 
     @classmethod
     def _find(cls, datastore, **labels) -> List["BaseSchema"]:
+        labels, kwargs = cls.extract_labels(**labels)
+
+        # FIXME: move this part to its own method
         labels = dict(labels)
         for name in cls.get_index_fields():
             if name not in labels:
@@ -100,10 +116,14 @@ class BaseSchema(BaseModel):
             label = labels
 
         label = index.validate_label(label)
-        interface = get_interface(datastore)
+        kwargs = {k.lstrip('_'):v for k,v in kwargs.items()}
+        interface = get_interface(datastore, **kwargs)
 
         query = interface.compile_query(index, label)
-        docs = query.apply(datastore)
+        docs = query.execute()
+        # use schema to validate docs
+        # FIXME: maybe just pass instances instead of dicts
+        docs = [cls(**doc).dict() for doc in docs]
         docs = index.reduce(docs, labels)
         return docs
 
@@ -146,8 +166,8 @@ class BaseSchema(BaseModel):
         return cls(**data)
 
     @classmethod
-    def ensure_index(cls, datastore):
-        interface = get_interface(datastore)
+    def ensure_index(cls, datastore, **kwargs):
+        interface = get_interface(datastore, **kwargs)
         names = list(cls.get_index_fields())
         return interface.ensure_index(datastore, names)
 
@@ -160,16 +180,16 @@ class BaseSchema(BaseModel):
     def index_labels_tuple(self):
         return tuple(v for v in self.index_labels.values())
 
-    def save(self, datastore=None):
+    def save(self, datastore=None, **kwargs):
         if datastore is None:
             datastore = self.default_datasource()
-        interface = get_interface(datastore)
+        interface = get_interface(datastore, **kwargs)
         existing = self.find(datastore, **self.index_labels)
         if existing:
             existing[0].pre_update(datastore, self)
         else:
             self.pre_insert(datastore)
-        return interface.insert(datastore, self)
+        return interface.insert(self)
 
     def pre_insert(self, datastore):
         pass

@@ -15,3 +15,6 @@ class BaseHttpClient:
         r = requests.post(self.url, headers=self.headers, data=data)
         r.raise_for_status()
         return r.json()
+
+class HttpClient(BaseHttpClient):
+    pass

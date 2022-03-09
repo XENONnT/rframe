@@ -17,17 +17,18 @@ try:
     class MultiMongoAggregation(BaseDataQuery):
         aggregations: list
 
-        def __init__(self, aggregations):
-            self.aggregations = aggregations
-
-        def apply(self, collection: Collection):
+        def __init__(self, collection: Collection, aggregations: list):
             if not isinstance(collection, Collection):
                 raise TypeError(
                     f"collection must be a pymongo Collection, got {type(collection)}."
                 )
+            self.collection = collection
+            self.aggregations = aggregations
+
+        def execute(self):
             results = []
             for agg in self.aggregations:
-                results.extend(agg.apply(collection))
+                results.extend(agg.apply(self.collection))
             return results
 
         def logical_or(self, other: "MultiMongoAggregation"):
@@ -47,16 +48,17 @@ try:
     class MongoAggregation(BaseDataQuery):
         pipeline: list
 
-        def __init__(self, pipeline):
-            self.pipeline = pipeline
-
-        def apply(self, collection: Collection):
+        def __init__(self, collection: Collection, pipeline: list):
             if not isinstance(collection, Collection):
                 raise TypeError(
                     f"collection must be a pymongo Collection, got {type(collection)}."
                 )
 
-            return list(collection.aggregate(self.pipeline, allowDiskUse=True))
+            self.collection = collection
+            self.pipeline = pipeline
+
+        def execute(self):
+            return list(self.collection.aggregate(self.pipeline, allowDiskUse=True))
 
         def logical_and(self, other):
             return MongoAggregation(self.pipeline + other.pipeline)
@@ -79,6 +81,22 @@ try:
 
     @DatasourceInterface.register_interface(pymongo.collection.Collection)
     class MongoInterface(DatasourceInterface):
+
+        @classmethod
+        def from_url(cls, source: str,
+                    database: str = None,
+                    collection: str = None,
+                    **kwargs):
+            if source.startswith("mongodb"):
+                if database is None:
+                    raise ValueError("database must be specified")
+                if collection is None:
+                    raise ValueError("collection must be specified")
+                source = pymongo.MongoClient(source)[database][collection]
+                return cls(source)
+
+            raise NotImplementedError
+
         @singledispatchmethod
         def compile_query(self, index, label):
             raise NotImplementedError(
@@ -92,7 +110,7 @@ try:
                 others = [name for name in names if name != idx.name]
                 agg = self.compile_query(idx, label, others=others)
                 pipeline.extend(agg.pipeline)
-            return MongoAggregation(pipeline)
+            return MongoAggregation(self.source, pipeline)
 
         def product_multi_query(self, indexes, labels):
             labels = [label if isinstance(label, list) else [label] for label in labels]
@@ -100,7 +118,7 @@ try:
             for label_vals in product(*labels):
                 agg = self.simple_multi_query(indexes, label_vals)
                 aggs.append(agg)
-            return MultiMongoAggregation(aggs)
+            return MultiMongoAggregation(self.source, aggs)
 
         @compile_query.register(list)
         @compile_query.register(tuple)
@@ -152,7 +170,7 @@ try:
             if label is not None:
                 pipeline.append({"$match": match})
 
-            return MongoAggregation(pipeline)
+            return MongoAggregation(self.source, pipeline)
 
         @compile_query.register(InterpolatingIndex)
         def build_interpolation_query(self, index, label, others=None):
@@ -160,7 +178,7 @@ try:
             the value of interest. For each value we take the closest document on either side.
             """
             if label is None:
-                return MongoAggregation([])
+                return MongoAggregation(self.source, [])
 
             if not isinstance(label, list):
                 pipelines = dict(
@@ -168,7 +186,7 @@ try:
                     after=mongo_after_query(index.name, label, limit=others),
                 )
                 pipeline = merge_pipelines(pipelines)
-                return MongoAggregation(pipeline)
+                return MongoAggregation(self.source, pipeline)
 
             pipelines = {
                 f"agg{i}": mongo_closest_query(index.name, value)
@@ -176,7 +194,7 @@ try:
             }
             pipeline = merge_pipelines(pipelines)
 
-            return MongoAggregation(pipeline)
+            return MongoAggregation(self.source, pipeline)
 
         @compile_query.register(IntervalIndex)
         def build_interval_query(self, index, intervals, others=None):
@@ -222,9 +240,9 @@ try:
                     }
                 ]
 
-            return MongoAggregation(pipeline)
+            return MongoAggregation(self.source, pipeline)
 
-        def insert(self, collection: Collection, doc):
+        def insert(self, doc):
             """We want the client logic to be agnostic to
             whether the value being replaced is actually stored in the DB or
             was inferred from e.g interpolation.
@@ -237,7 +255,7 @@ try:
             from rframe.schema import InsertionError
 
             try:
-                doc = collection.find_one_and_update(
+                doc = self.source.find_one_and_update(
                     doc.index_labels,
                     {"$set": doc.dict()},
                     projection={"_id": False},
@@ -248,11 +266,11 @@ try:
             except Exception as e:
                 raise InsertionError(f"Mongodb has rejected this insertion:\n {e} ")
 
-        def insert_many(self, collection: Collection, docs):
+        def insert_many(self, docs):
             raise NotImplementedError
 
-        def ensure_index(self, collection, names, order=pymongo.ASCENDING):
-            collection.ensure_index([(name, order) for name in names])
+        def ensure_index(self, names, order=pymongo.ASCENDING):
+            self.source.ensure_index([(name, order) for name in names])
 
 except ImportError:
 

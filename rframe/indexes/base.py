@@ -55,9 +55,6 @@ class BaseIndex(FieldInfo):
             else:
                 return slice(start, stop, step)
 
-        if isinstance(label, dict) and self.field.type_ is not dict:
-            return {k: self._validate_label(val) for k, val in label.items()}
-
         if isinstance(label, list) and self.field.type_ is not list:
             return [self._validate_label(val) for val in label]
 
