@@ -6,7 +6,7 @@ class BaseHttpClient:
         self.url = url
         self.headers = headers if headers is not None else {}
 
-    def find(self, **params):
+    def query(self, **params):
         r = requests.get(self.url, headers=self.headers, params=params)
         r.raise_for_status()
         return r.json()

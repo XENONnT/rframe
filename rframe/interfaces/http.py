@@ -15,7 +15,7 @@ class HttpQuery(BaseDataQuery):
         self.params = params if params is not None else {}
 
     def execute(self):
-        return self.client.find(**self.params)
+        return self.client.query(**self.params)
 
 def serializable_interval(interval):
     if isinstance(interval, list):
