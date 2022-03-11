@@ -91,7 +91,9 @@ class RemoteFrame:
         returns a pandas dataframe
         """
         docs = self.sel_records(*args, **kwargs)
-        df = pd.DataFrame(docs, columns=self.index.names + self.columns)
+        df = pd.json_normalize(docs)
+
+        # df = pd.DataFrame(docs, columns=self.index.names + self.columns)
 
         idx = [c for c in self.schema.get_index_fields() if c in df.columns]
         return df.sort_values(idx).set_index(idx)

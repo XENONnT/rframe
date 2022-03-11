@@ -1,8 +1,9 @@
-from typing import Dict, List, Mapping
+import inspect
 
 import pandas as pd
 from pydantic import BaseModel
 from pydantic.fields import FieldInfo, ModelField
+from typing import Dict, List, Mapping, Union
 
 from .indexes import BaseIndex, Index, MultiIndex
 from .interfaces import get_interface
@@ -79,7 +80,7 @@ class BaseSchema(BaseModel):
         return labels, kwargs
 
     @classmethod
-    def compile_query(cls, datastore, **labels):
+    def compile_query(cls, datasource, **labels):
         labels, kwargs = cls.extract_labels(**labels)
         for name in cls.get_index_fields():
             if name not in labels:
@@ -93,13 +94,13 @@ class BaseSchema(BaseModel):
             label = labels
 
         label = index.validate_label(label)
-        interface = get_interface(datastore, **kwargs)
+        interface = get_interface(datasource, **kwargs)
 
         query = interface.compile_query(index, label)
         return query
 
     @classmethod
-    def _find(cls, datastore, **labels) -> List["BaseSchema"]:
+    def _find(cls, datasource, **labels) -> List["BaseSchema"]:
         labels, kwargs = cls.extract_labels(**labels)
 
         # FIXME: move this part to its own method
@@ -117,7 +118,7 @@ class BaseSchema(BaseModel):
 
         label = index.validate_label(label)
         kwargs = {k.lstrip('_'):v for k,v in kwargs.items()}
-        interface = get_interface(datastore, **kwargs)
+        interface = get_interface(datasource, **kwargs)
 
         query = interface.compile_query(index, label)
         docs = query.execute()
@@ -128,10 +129,10 @@ class BaseSchema(BaseModel):
         return docs
 
     @classmethod
-    def find(cls, datastore=None, **labels) -> List["BaseSchema"]:
-        if datastore is None:
-            datastore = cls.default_datasource()
-        docs = cls._find(datastore, **labels)
+    def find(cls, datasource=None, **labels) -> List["BaseSchema"]:
+        if datasource is None:
+            datasource = cls.default_datasource()
+        docs = cls._find(datasource, **labels)
         if not docs:
             return []
 
@@ -140,8 +141,8 @@ class BaseSchema(BaseModel):
         return docs
 
     @classmethod
-    def find_one(cls, datastore=None, **labels) -> "BaseSchema":
-        docs = cls.find(datastore, **labels)
+    def find_one(cls, datasource=None, **labels) -> "BaseSchema":
+        docs = cls.find(datasource, **labels)
         if docs:
             return docs[0]
 
@@ -166,10 +167,26 @@ class BaseSchema(BaseModel):
         return cls(**data)
 
     @classmethod
-    def ensure_index(cls, datastore, **kwargs):
-        interface = get_interface(datastore, **kwargs)
+    def ensure_index(cls, datasource, **kwargs):
+        interface = get_interface(datasource, **kwargs)
         names = list(cls.get_index_fields())
-        return interface.ensure_index(datastore, names)
+        return interface.ensure_index(datasource, names)
+
+    @classmethod
+    def get_query_signature(cls):
+        params = []
+        for name in cls.__fields__:
+            for type_ in cls.mro():
+                if name in getattr(type_, '__annotations__', {}):
+                    label_annotation = type_.__annotations__[name]
+                    annotation = Union[label_annotation, List[label_annotation]]
+                    param = inspect.Parameter(name,
+                                            inspect.Parameter.KEYWORD_ONLY, 
+                                            default=None,
+                                            annotation=annotation)
+                    params.append(param)
+                    break
+        return inspect.Signature(params)
 
     @property
     def index_labels(self):
@@ -180,21 +197,21 @@ class BaseSchema(BaseModel):
     def index_labels_tuple(self):
         return tuple(v for v in self.index_labels.values())
 
-    def save(self, datastore=None, **kwargs):
-        if datastore is None:
-            datastore = self.default_datasource()
-        interface = get_interface(datastore, **kwargs)
-        existing = self.find(datastore, **self.index_labels)
+    def save(self, datasource=None, **kwargs):
+        if datasource is None:
+            datasource = self.default_datasource()
+        interface = get_interface(datasource, **kwargs)
+        existing = self.find(datasource, **self.index_labels)
         if existing:
-            existing[0].pre_update(datastore, self)
+            existing[0].pre_update(datasource, self)
         else:
-            self.pre_insert(datastore)
+            self.pre_insert(datasource)
         return interface.insert(self)
 
-    def pre_insert(self, datastore):
+    def pre_insert(self, datasource):
         pass
 
-    def pre_update(self, datastore, new):
+    def pre_update(self, datasource, new):
         pass
 
     def same_values(self, other):

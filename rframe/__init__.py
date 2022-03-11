@@ -8,3 +8,4 @@ from .indexes import *
 from .rframe import RemoteFrame
 from .schema import BaseSchema
 from .http_client import BaseHttpClient
+from .http_server import SchemaRouter

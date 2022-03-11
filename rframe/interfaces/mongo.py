@@ -128,9 +128,6 @@ try:
                 indexes = indexes.indexes
                 labels = labels.values()
 
-            # if any([isinstance(l, list) for l in labels]):
-            #     return self.product_multi_query(indexes, labels)
-
             return self.simple_multi_query(indexes, labels)
 
         @compile_query.register(Index)
