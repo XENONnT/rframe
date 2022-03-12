@@ -171,6 +171,21 @@ class BaseSchema(BaseModel):
         names = list(cls.get_index_fields())
         return interface.ensure_index(datasource, names)
 
+    @classmethod
+    def unique(cls, field: str, datasource=None, **labels):
+        query = cls.compile_query(datasource, **labels)
+        return query.unique(field)
+
+    @classmethod
+    def min(cls, field: str, datasource=None, **labels):
+        query = cls.compile_query(datasource, **labels)
+        return query.min(field)
+
+    @classmethod
+    def max(cls, field: str, datasource=None, **labels):
+        query = cls.compile_query(datasource, **labels)
+        return query.max(field)
+
     @property
     def index_labels(self):
         data = self.dict()

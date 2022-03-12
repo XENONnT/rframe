@@ -75,11 +75,24 @@ class RemoteFrame:
 
     def head(self, n=10) -> pd.DataFrame:
         """Return first n documents as a pandas dataframe"""
-        docs = self.schema.index.head(self.db, n)
+        query = self.schema.compile_query(self.db)
+        docs = query.execute(limit=n)
         index_fields = self.schema.index_names()
         df = pd.DataFrame(docs, columns=self.schema.all_fields())
         idx = [c for c in index_fields if c in df.columns]
         return df.sort_values(idx).set_index(idx)
+
+    def unique(self, column: str):
+        """Return unique values for each column"""
+        return self.schema.unique(column, self.db)
+
+    def min(self, column: str) -> Any:
+        """Return the minimum value for column"""
+        return self.schema.min(column, self.db)
+
+    def max(self, column: str) -> Any:
+        """Return the maximum value for column"""
+        return self.schema.max(column, self.db)
 
     def sel(self, *args: IndexLabel, **kwargs: IndexLabel) -> pd.DataFrame:
         """select a subset of the data
@@ -182,6 +195,15 @@ class RemoteSeries:
         raise InsertionError(
             "Cannot set values on a RemoteSeries object," "use the RemoteDataFrame."
         )
+
+    def unique(self):
+        return self.obj.unique(self.column)
+
+    def min(self):
+        return self.obj.min(self.column)
+
+    def max(self):
+        return self.obj.max(self.column)
 
     def __repr__(self) -> str:
         return f"RemoteSeries(index={self.obj.index.names}," f"column={self.column})"
