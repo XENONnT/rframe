@@ -133,18 +133,23 @@ try:
                     self.routes.remove(route)
 
         def _query_route(self, *args, **kwargs) -> Callable[..., Any]:
-            def query_func_impl(reduce=True, **kwargs):
-                if reduce:
-                    return self.schema.find(self.datasource, **kwargs)
+            def query_func_impl(limit: int=None, skip: int=None, **kwargs):
                 query = self.schema.compile_query(self.datasource, **kwargs)
-                return query.execute()
+                return query.execute(limit=limit, skip=skip)
                 
             query_func_name = f"{self.schema.__name__}_query"
             query_signature = self.schema.get_query_signature(default=None)
-            extra = inspect.Parameter("reduce", 
+            extra = [
+                inspect.Parameter("limit", 
                             inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                            default=Query(True),
-                            annotation=bool)
+                            default=Query(None),
+                            annotation=int),
+                inspect.Parameter("skip", 
+                            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                            default=Query(None),
+                            annotation=int),
+            ]
+            
             query_signature = makefun.add_signature_parameters(query_signature, extra)
             query_func = makefun.create_function(query_signature,
                                                 query_func_impl,

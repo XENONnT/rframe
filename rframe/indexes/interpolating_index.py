@@ -39,6 +39,8 @@ def interpolate_datetime(x, xs, ys, kind="linear"):
 
 
 class InterpolatingIndex(BaseIndex):
+    DOCS_PER_LABEL = 2
+
     kind: str = "linear"
     neighbours: int = 1
     inclusive: bool = False

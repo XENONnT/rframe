@@ -6,9 +6,18 @@ from rframe import interfaces
 class BaseDataQuery(ABC):
 
     @abstractmethod
-    def execute(self):
+    def execute(self, limit=None, offset=None):
         pass
 
+    def unique(self, field):
+        raise NotImplementedError
+    
+    def max(self, field):
+        raise NotImplementedError
+    
+    def min(self, field):
+        raise NotImplementedError
+    
 
 class DatasourceInterface(ABC):
     _INTERFACES = {}
@@ -61,9 +70,9 @@ class DatasourceInterface(ABC):
     @abstractmethod
     def compile_query(self, index, label):
         pass
-
+    
     def insert(self, doc):
         raise NotImplementedError
 
     def insert_many(self, docs):
-        raise NotImplementedError
+        return [self.insert(doc) for doc in docs]

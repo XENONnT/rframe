@@ -11,6 +11,8 @@ from rframe.utils import singledispatchmethod
 
 
 class BaseIndex(FieldInfo):
+    DOCS_PER_LABEL = 1
+    
     __slots__ = FieldInfo.__slots__ + ("name", "schema", "field", "nullable", "unique")
 
     def __init__(self, default: Any = ..., **kwargs: Any) -> None:

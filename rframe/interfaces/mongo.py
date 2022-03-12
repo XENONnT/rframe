@@ -48,20 +48,70 @@ try:
     class MongoAggregation(BaseDataQuery):
         pipeline: list
 
-        def __init__(self, collection: Collection, pipeline: list):
+        def __init__(self, index, labels, collection: Collection, pipeline: list):
             if not isinstance(collection, Collection):
                 raise TypeError(
                     f"collection must be a pymongo Collection, got {type(collection)}."
                 )
-
+            self.index = index
+            self.labels = labels
             self.collection = collection
             self.pipeline = pipeline
 
-        def execute(self):
-            return list(self.collection.aggregate(self.pipeline, allowDiskUse=True))
+        def execute(self, limit: int = None, skip: int = None):
+            pipeline = list(self.pipeline)
+            if skip is not None:
+                raw_skip = skip * self.index.DOCS_PER_LABEL
+                pipeline.append({"$skip": raw_skip})
+            if limit is not None:
+                raw_limit = limit * self.index.DOCS_PER_LABEL
+                pipeline.append({"$limit": raw_limit})
+            pipeline.append({"$project": { "_id": 0}})
+            docs = list(self.collection.aggregate(pipeline, allowDiskUse=True))
+
+            docs = self.index.reduce(docs, self.labels)
+            return docs[:limit]
+
+        def unique(self, field: str):
+            pipeline = list(self.pipeline)
+            pipeline.append({
+                "$group": {
+                    "_id": "$" + field,
+                    'first': { '$first':  "$" + field },
+                }
+                })
+            values = [doc['first'] for doc in self.collection.aggregate(pipeline, allowDiskUse=True)]
+            return set(values)
+        
+        def max(self, field: str):
+            pipeline = list(self.pipeline)
+            pipeline.append({
+                "$sort": { field: -1}
+            })
+
+            results = list(self.collection.aggregate(pipeline, allowDiskUse=True))
+
+            if len(results):
+                return results[0][field]
+        
+        def min(self, field: str):
+            pipeline = list(self.pipeline)
+            pipeline.append({
+                "$sort": { field: 1}
+            })
+            pipeline.append({"$limit": 1})
+            results = list(self.collection.aggregate(pipeline, allowDiskUse=True))
+
+            if len(results):
+                return results[0][field]
 
         def logical_and(self, other):
-            return MongoAggregation(self.pipeline + other.pipeline)
+            index = MultiIndex(self.index, other.index)
+            labels = dict(self.labels, **other.labels)
+            return MongoAggregation(index,
+                                    labels,
+                                    self.collection, 
+                                    self.pipeline + other.pipeline)
 
         def logical_or(self, other):
             if isinstance(other, MongoAggregation):
@@ -103,32 +153,30 @@ try:
                 f"{self.__class__.__name__} does not support {type(index)} indexes."
             )
 
-        def simple_multi_query(self, indexes, labels):
+        def simple_multi_query(self, index, labels):
             pipeline = []
-            names = [idx.name for idx in indexes]
-            for idx, label in zip(indexes, labels):
-                others = [name for name in names if name != idx.name]
+
+            for idx, label in zip(index.indexes, labels.values()):
+                others = [name for name in index.names if name != idx.name]
                 agg = self.compile_query(idx, label, others=others)
                 pipeline.extend(agg.pipeline)
-            return MongoAggregation(self.source, pipeline)
+            return MongoAggregation(index, labels, self.source, pipeline)
 
-        def product_multi_query(self, indexes, labels):
+        def product_multi_query(self, index, labels):
             labels = [label if isinstance(label, list) else [label] for label in labels]
             aggs = []
             for label_vals in product(*labels):
-                agg = self.simple_multi_query(indexes, label_vals)
+                agg = self.simple_multi_query(index.indexes, label_vals)
                 aggs.append(agg)
             return MultiMongoAggregation(self.source, aggs)
 
         @compile_query.register(list)
         @compile_query.register(tuple)
         @compile_query.register(MultiIndex)
-        def multi_query(self, indexes, labels):
-            if isinstance(indexes, MultiIndex):
-                indexes = indexes.indexes
-                labels = labels.values()
-
-            return self.simple_multi_query(indexes, labels)
+        def multi_query(self, index, labels):
+            if not isinstance(index, MultiIndex):
+                index = MultiIndex(*index)
+            return self.simple_multi_query(index, labels)
 
         @compile_query.register(Index)
         @compile_query.register(str)
@@ -166,8 +214,10 @@ try:
             pipeline = []
             if label is not None:
                 pipeline.append({"$match": match})
-            pipeline.append({"$project": { "_id": 0}})
-            return MongoAggregation(self.source, pipeline)
+
+            labels = {name: label}
+
+            return MongoAggregation(index, labels, self.source, pipeline)
 
         @compile_query.register(InterpolatingIndex)
         def build_interpolation_query(self, index, label, others=None):
@@ -175,7 +225,8 @@ try:
             the value of interest. For each value we take the closest document on either side.
             """
             if label is None:
-                return MongoAggregation(self.source, [])
+                labels = {index.name: label}
+                return MongoAggregation(index, labels, self.source, [])
 
             if not isinstance(label, list):
                 pipelines = dict(
@@ -183,7 +234,8 @@ try:
                     after=mongo_after_query(index.name, label, limit=others),
                 )
                 pipeline = merge_pipelines(pipelines)
-                return MongoAggregation(self.source, pipeline)
+                labels = {index.name: label}
+                return MongoAggregation(index, labels, self.source, pipeline)
 
             pipelines = {
                 f"agg{i}": mongo_closest_query(index.name, value)
@@ -191,7 +243,9 @@ try:
             }
             pipeline = merge_pipelines(pipelines)
 
-            return MongoAggregation(self.source, pipeline)
+            labels = {index.name: label}
+
+            return MongoAggregation(index, labels, self.source, pipeline)
 
         @compile_query.register(IntervalIndex)
         def build_interval_query(self, index, intervals, others=None):
@@ -222,22 +276,14 @@ try:
                             "$or": queries,
                         }
                     },
-                    {
-                        "$project": {
-                            "_id": 0,
-                        },
-                    },
+                    
                 ]
             else:
-                pipeline = [
-                    {
-                        "$project": {
-                            "_id": 0,
-                        },
-                    }
-                ]
+                pipeline = []
 
-            return MongoAggregation(self.source, pipeline)
+            labels = {index.name: intervals}
+
+            return MongoAggregation(index, labels, self.source, pipeline)
 
         def insert(self, doc):
             """We want the client logic to be agnostic to
@@ -347,7 +393,6 @@ def mongo_before_query(name, value, limit=1):
         {"$match": {f"{name}": {"$lte": value}}},
         {"$sort": {f"{name}": -1}},
         {"$limit": limit},
-        {"$project": { "_id": 0}},
     ]
 
 
@@ -358,7 +403,6 @@ def mongo_after_query(name, value, limit=1):
         {"$match": {f"{name}": {"$gte": value}}},
         {"$sort": {f"{name}": 1}},
         {"$limit": limit},
-        {"$project": { "_id": 0}},
     ]
 
 
@@ -372,7 +416,7 @@ def mongo_grouped_before_query(name, value, groups):
             # make the documents the new root, discarding the groupby value
             "$replaceRoot": {"newRoot": "$doc"},
         },
-        {"$project": { "_id": 0}},
+        
     ]
 
 
@@ -385,7 +429,6 @@ def mongo_grouped_after_query(name, value, groups):
             # make the documents the new root, discarding the groupby value
             "$replaceRoot": {"newRoot": "$doc"},
         },
-        {"$project": { "_id": 0}},
     ]
 
 
@@ -418,7 +461,7 @@ def mongo_closest_query(name, value):
         },
         {
             # drop the extra fields, they are no longer needed
-            "$project": {"_diff": 0, "_after": 0, "_id": 0},
+            "$project": {"_diff": 0, "_after": 0},
         },
     ]
 
@@ -443,10 +486,6 @@ def merge_pipelines(pipelines):
         # move list of documents to the root of the result
         # so we just get a nice list of documents
         {"$replaceRoot": {"newRoot": "$union"}},
-        {
-            "$project": {
-                "_id": 0,
-            },
-        },
+        
     ]
     return pipeline

@@ -97,7 +97,10 @@ class BaseSchema(BaseModel):
         return labels, kwargs
 
     @classmethod
-    def compile_query(cls, datasource, **labels):
+    def compile_query(cls, datasource=None, **labels):
+        if datasource is None:
+            datasource = cls.default_datasource()
+
         labels, kwargs = cls.extract_labels(**labels)
         for name in cls.get_index_fields():
             if name not in labels:
@@ -111,57 +114,36 @@ class BaseSchema(BaseModel):
             label = labels
 
         label = index.validate_label(label)
+
+        kwargs = {k.lstrip('_'):v for k,v in kwargs.items()}
         interface = get_interface(datasource, **kwargs)
 
         query = interface.compile_query(index, label)
         return query
 
     @classmethod
-    def _find(cls, datasource, **labels) -> List["BaseSchema"]:
-        labels, kwargs = cls.extract_labels(**labels)
+    def _find(cls, datasource=None, _skip=None, _limit=None, **labels) -> List["BaseSchema"]:
 
-        # FIXME: move this part to its own method
-        labels = dict(labels)
-        for name in cls.get_index_fields():
-            if name not in labels:
-                labels[name] = None
-        indexes = [cls.index_for(name) for name in labels]
-        if len(indexes) == 1:
-            index = indexes[0]
-            label = labels[index.name]
-        else:
-            index = MultiIndex(*indexes)
-            label = labels
-
-        label = index.validate_label(label)
-        kwargs = {k.lstrip('_'):v for k,v in kwargs.items()}
-        interface = get_interface(datasource, **kwargs)
-
-        query = interface.compile_query(index, label)
-        docs = query.execute()
-        # use schema to validate docs
+        query = cls.compile_query(datasource=datasource, **labels)
+        docs = query.execute(limit=_limit, skip=_skip)
+        # use schema to validate docs returned by backend
         # FIXME: maybe just pass instances instead of dicts
         docs = [cls(**doc).dict() for doc in docs]
-        docs = index.reduce(docs, labels)
         return docs
 
     @classmethod
     def find(cls, datasource=None, **labels) -> List["BaseSchema"]:
-        if datasource is None:
-            datasource = cls.default_datasource()
-        docs = cls._find(datasource, **labels)
-        if not docs:
-            return []
+        return [cls(**doc) for doc in  cls._find(datasource, **labels)]
 
-        docs = [cls(**doc) for doc in docs]
-
-        return docs
+    @classmethod
+    def find_df(cls, datasource=None, **labels) -> pd.DateOffset:
+        return pd.json_normalize(cls._find(datasource, **labels))
 
     @classmethod
     def find_one(cls, datasource=None, **labels) -> "BaseSchema":
-        docs = cls.find(datasource, **labels)
+        docs = cls._find(datasource, _limit=1, **labels)
         if docs:
-            return docs[0]
+            return cls(**docs[0])
 
     @classmethod
     def from_pandas(cls, record):

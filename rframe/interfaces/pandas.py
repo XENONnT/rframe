@@ -9,7 +9,8 @@ from .base import BaseDataQuery, DatasourceInterface
 
 
 class PandasBaseQuery(BaseDataQuery):
-    def __init__(self, df, column: str, label: Any) -> None:
+    def __init__(self, index, df, column: str, label: Any) -> None:
+        self.index = index
         self.df = df
         self.column = column
         self.label = label
@@ -17,12 +18,30 @@ class PandasBaseQuery(BaseDataQuery):
     def apply_selection(self, df):
         raise NotImplementedError
 
-    def execute(self):
+    def execute(self, limit: int = None, skip: int = None):
         df = self.apply_selection(self.df)
         if df.index.names:
             df = df.reset_index()
-        return df.to_dict(orient="records")
+        if limit is not None:
+            start = skip * self.index.DOCS_PER_LABEL if skip is not None else 0
+            limit = limit * self.index.DOCS_PER_LABEL
+            df = df.iloc[start:limit]
+        docs = df.to_dict(orient="records")
+        labels = {self.column: self.label}
+        docs = self.index.reduce(docs, labels)
+        return docs
 
+    def min(self, field: str):
+        df = self.apply_selection(self.df)
+        return df[field].min()
+
+    def max(self, field: str):
+        df = self.apply_selection(self.df)
+        return df[field].max()
+    
+    def unique(self, field):
+        df = self.apply_selection(self.df)
+        return df[field].unique()
 
 class PandasSimpleQuery(PandasBaseQuery):
     def apply_selection(self, df):
@@ -106,7 +125,9 @@ class PandasInterpolationQuery(PandasBaseQuery):
 
 
 class PandasMultiQuery(PandasBaseQuery):
-    def __init__(self, queries: List[PandasBaseQuery]) -> None:
+    def __init__(self, index, df, queries: List[PandasBaseQuery]) -> None:
+        self.index = index
+        self.df = df
         self.queries = queries
 
     def apply_selection(self, df):
@@ -121,6 +142,18 @@ class PandasMultiQuery(PandasBaseQuery):
                 df = query.apply_selection(df)
         return df
 
+    def execute(self, limit: int = None, skip: int = None):
+        df = self.apply_selection(self.df)
+        if df.index.names:
+            df = df.reset_index()
+        if limit is not None:
+            start = skip * self.index.DOCS_PER_LABEL if skip is not None else 0
+            limit = limit * self.index.DOCS_PER_LABEL
+            df = df.iloc[start:limit]
+        docs = df.to_dict(orient="records")
+        labels = {query.column: query.label for query in self.queries}
+        docs = self.index.reduce(docs, labels)
+        return docs
 
 @DatasourceInterface.register_interface(pd.DataFrame)
 class PandasInterface(DatasourceInterface):
@@ -138,7 +171,7 @@ class PandasInterface(DatasourceInterface):
             return cls(df)
         
         raise NotImplementedError
-        
+
     @singledispatchmethod
     def compile_query(self, index, label):
         raise NotImplementedError(
@@ -147,26 +180,25 @@ class PandasInterface(DatasourceInterface):
 
     @compile_query.register(Index)
     def simple_query(self, index, label):
-        return PandasSimpleQuery(self.source, index.name, label)
+        return PandasSimpleQuery(index, self.source, index.name, label)
 
     @compile_query.register(IntervalIndex)
     def interval_query(self, index, label):
-        return PandasIntervalQuery(self.source, index.name, label)
+        return PandasIntervalQuery(index, self.source, index.name, label)
 
     @compile_query.register(InterpolatingIndex)
     def interpolating_query(self, index, label):
-        return PandasInterpolationQuery(self.source, self.source, index.name, label)
+        return PandasInterpolationQuery(index, self.source, index.name, label)
 
     @compile_query.register(list)
     @compile_query.register(tuple)
     @compile_query.register(MultiIndex)
-    def multi_query(self, indexes, labels):
-        if isinstance(indexes, MultiIndex):
-            indexes = indexes.indexes
-            labels = labels.values()
+    def multi_query(self, index, labels):
+        if not isinstance(index, MultiIndex):
+            index = MultiIndex(*index)
 
         queries = [
-            self.compile_query(idx, label) for idx, label in zip(indexes, labels)
+            self.compile_query(idx, labels[idx.name]) for idx in index.indexes
         ]
 
-        return PandasMultiQuery(self.source, queries)
+        return PandasMultiQuery(index, self.source, queries)

@@ -38,17 +38,10 @@ class HttpClient(BaseHttpClient):
         self.url = url
         self.headers = headers if headers is not None else {}
 
-    def query(self, **params):
+    def query(self, limit: int = None, skip: int = None, **params):
         params = jsonable(params)
         r = requests.post(self.url, headers=self.headers,
-                        json=params, params={'reduce': False})
-        r.raise_for_status()
-        return r.json()
-
-    def find(self, **params):
-        params = jsonable(params)
-        r = requests.post(self.url, headers=self.headers,
-                        json=params, params={'reduce': True})
+                        json=params, params={'limit': limit, 'skip': skip})
         r.raise_for_status()
         return r.json()
 

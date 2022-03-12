@@ -60,6 +60,13 @@ class MultiIndex(BaseIndex):
             if index.name in ["", "index"]:
                 index.name = f"index_{i}"
         self._indexes = indexes
+        
+    @property
+    def DOCS_PER_LABEL(self):
+        ndocs = 1
+        for index in self.indexes:
+            ndocs *= index.DOCS_PER_LABEL
+        return ndocs
 
     @property
     def indexes(self):
@@ -97,3 +104,4 @@ class MultiIndex(BaseIndex):
 
     def __repr__(self):
         return f"MultiIndex({self.indexes})"
+
