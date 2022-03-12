@@ -1,6 +1,9 @@
+from typing import Mapping
+from pydantic import BaseModel
 import requests
 from abc import ABC, abstractmethod
 
+from pydantic.json import ENCODERS_BY_TYPE
 
 class BaseHttpClient(ABC):
 
@@ -12,6 +15,23 @@ class BaseHttpClient(ABC):
     def insert(self, data):
         pass
 
+def jsonable(obj):
+    if isinstance(obj, BaseModel):
+        return obj.dict()
+
+    if isinstance(obj, Mapping):
+        return {k: jsonable(v) for k, v in obj.items()}
+
+    if isinstance(obj, (list, set, frozenset, tuple)):
+        return [jsonable(v) for v in obj]
+
+    if isinstance(obj, (str, int, float, type(None))):
+        return obj
+
+    if type(obj) in ENCODERS_BY_TYPE:
+        return ENCODERS_BY_TYPE[type(obj)](obj)
+    
+    raise TypeError(f"Cannot convert {type(obj)} to JSON")
 
 class HttpClient(BaseHttpClient):
     def __init__(self, url, headers=None):
@@ -19,11 +39,21 @@ class HttpClient(BaseHttpClient):
         self.headers = headers if headers is not None else {}
 
     def query(self, **params):
-        r = requests.get(self.url, headers=self.headers, params=params)
+        params = jsonable(params)
+        r = requests.post(self.url, headers=self.headers,
+                        json=params, params={'reduce': False})
         r.raise_for_status()
         return r.json()
-    
-    def insert(self, data):
-        r = requests.post(self.url, headers=self.headers, data=data)
+
+    def find(self, **params):
+        params = jsonable(params)
+        r = requests.post(self.url, headers=self.headers,
+                        json=params, params={'reduce': True})
+        r.raise_for_status()
+        return r.json()
+
+    def insert(self, doc):
+        doc = jsonable(doc)
+        r = requests.put(self.url, headers=self.headers, json=doc)
         r.raise_for_status()
         return r.json()

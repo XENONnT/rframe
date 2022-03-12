@@ -166,7 +166,7 @@ try:
             pipeline = []
             if label is not None:
                 pipeline.append({"$match": match})
-
+            pipeline.append({"$project": { "_id": 0}})
             return MongoAggregation(self.source, pipeline)
 
         @compile_query.register(InterpolatingIndex)
@@ -347,6 +347,7 @@ def mongo_before_query(name, value, limit=1):
         {"$match": {f"{name}": {"$lte": value}}},
         {"$sort": {f"{name}": -1}},
         {"$limit": limit},
+        {"$project": { "_id": 0}},
     ]
 
 
@@ -357,6 +358,7 @@ def mongo_after_query(name, value, limit=1):
         {"$match": {f"{name}": {"$gte": value}}},
         {"$sort": {f"{name}": 1}},
         {"$limit": limit},
+        {"$project": { "_id": 0}},
     ]
 
 
@@ -370,6 +372,7 @@ def mongo_grouped_before_query(name, value, groups):
             # make the documents the new root, discarding the groupby value
             "$replaceRoot": {"newRoot": "$doc"},
         },
+        {"$project": { "_id": 0}},
     ]
 
 
@@ -382,6 +385,7 @@ def mongo_grouped_after_query(name, value, groups):
             # make the documents the new root, discarding the groupby value
             "$replaceRoot": {"newRoot": "$doc"},
         },
+        {"$project": { "_id": 0}},
     ]
 
 

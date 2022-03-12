@@ -44,6 +44,7 @@ invoke = "^1.6.0"
 hypothesis = "^6.37.2"
 pymongo = "*"
 black = "^22.1.0"
+fastapi = "^0.75.0"
 
 [tool.poetry.scripts]
 rframe = 'rframe.cli:main'

@@ -1,6 +1,5 @@
 """Main module."""
 
-import re
 from datetime import datetime
 from typing import Any, List, Tuple, Type, Union
 
@@ -9,13 +8,9 @@ from pydantic.typing import NoneType
 
 from .interfaces import get_interface
 from .schema import BaseSchema, InsertionError
+from .utils import camel_to_snake
 
 IndexLabel = Union[int, float, datetime, str, slice, NoneType, List]
-
-
-def camel_to_snake(name):
-    name = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", name)
-    return re.sub("([a-z0-9])([A-Z])", r"\1_\2", name).lower()
 
 
 class RemoteFrame:

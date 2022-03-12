@@ -1,3 +1,12 @@
+import re
+
+def camel_to_snake(name):
+    name = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", name)
+    return re.sub("([a-z0-9])([A-Z])", r"\1_\2", name).lower()
+
+def snake_to_camel(name):
+    return name.title().replace("_", "")
+
 """
 Copied from python 3.8 functools for 3.7 support
 """

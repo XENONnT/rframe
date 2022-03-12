@@ -81,4 +81,4 @@ class HttpInterface(DatasourceInterface):
         return HttpQuery(self.source, params)
 
     def insert(self, doc):
-        return self.source.insert(doc.json())
+        return self.source.insert(doc)

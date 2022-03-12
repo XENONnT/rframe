@@ -1,14 +1,18 @@
 
 from ast import Import
+import inspect
+
+from numpy import isin
 import makefun
 
 from typing import (Any, Callable, Dict, Generic,
                     List, Optional, Sequence, Type, Union)
 
 from .schema import BaseSchema
+from .utils import camel_to_snake
 
 try:
-    from fastapi import APIRouter, HTTPException
+    from fastapi import APIRouter, HTTPException, Query
     from fastapi.types import DecoratedCallable
     from fastapi.params import Depends
 
@@ -28,37 +32,43 @@ try:
             prefix: Optional[str] = None,
             tags: Optional[List[str]] = None,
             # paginate: Optional[int] = None,
-            query_route: bool = True,
-            insert_route: bool = True,
+            can_read: Union[bool, DEPENDENCIES] = True,
+            can_write: Union[bool, DEPENDENCIES] = True,
+
             **kwargs: Any,
         ) -> None:
 
             self.schema = schema
             self.datasource = datasource
 
-            prefix = str(prefix if prefix else self.schema.__name__).lower()
+            prefix = prefix if prefix else camel_to_snake(self.schema.__name__)
             prefix = self._base_path + prefix.strip("/")
             tags = tags or [prefix.strip("/").capitalize()]
 
             super().__init__(prefix=prefix, tags=tags, **kwargs)
 
-            if query_route:
-                
+            if isinstance(can_read, Depends):
+                can_read = [can_read]
+            if can_read:
                 self._add_api_route(
                     "",
                     self._query_route(),
-                    methods=["GET"],
+                    methods=["POST"],
                     response_model = Optional[List[self.schema]],  # type: ignore
-                    summary=f"Query {self.schema.__name__} documents",
+                    summary=f"Perform query on {self.schema.__name__} documents",
+                    dependencies=can_read,
                 )
 
-            if insert_route:
+            if isinstance(can_write, Depends):
+                can_write = [can_write]
+            if can_write:
                 self._add_api_route(
                     "",
                     self._insert_route(),
-                    methods=["POST"],
+                    methods=["PUT"],
                     response_model=Optional[self.schema],  # type: ignore
                     summary=f"Insert One {self.schema.__name__} document",
+                    dependencies=can_write,
                 )
 
         def _add_api_route(
@@ -122,21 +132,27 @@ try:
                 ):
                     self.routes.remove(route)
 
-        def _query_route(self,*args, **kwargs) -> Callable[..., Any]:
+        def _query_route(self, *args, **kwargs) -> Callable[..., Any]:
+            def query_func_impl(reduce=True, **kwargs):
+                if reduce:
+                    return self.schema.find(self.datasource, **kwargs)
+                query = self.schema.compile_query(self.datasource, **kwargs)
+                return query.execute()
+                
             query_func_name = f"{self.schema.__name__}_query"
-            query_signature = self.schema.get_query_signature()
-
-            find_with_source = makefun.partial(self.schema.find,
-                                            datasource=self.datasource)
-
+            query_signature = self.schema.get_query_signature(default=None)
+            extra = inspect.Parameter("reduce", 
+                            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                            default=Query(True),
+                            annotation=bool)
+            query_signature = makefun.add_signature_parameters(query_signature, extra)
             query_func = makefun.create_function(query_signature,
-                                                find_with_source,
+                                                query_func_impl,
                                                 func_name=query_func_name)
-
             return query_func
-
+            
         def _insert_route(self, *args: Any, **kwargs: Any) -> Callable[..., Any]:
-            async def insert(doc: self.schema):
+            def insert(doc: self.schema):
                 return doc.save(self.datasource)
             return insert
 

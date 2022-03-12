@@ -1,9 +1,10 @@
+from __future__ import annotations
 import inspect
 
 import pandas as pd
 from pydantic import BaseModel
 from pydantic.fields import FieldInfo, ModelField
-from typing import Dict, List, Mapping, Union
+from typing import Dict, List, Mapping, Optional, Union
 
 from .indexes import BaseIndex, Index, MultiIndex
 from .interfaces import get_interface
@@ -37,6 +38,22 @@ class BaseSchema(BaseModel):
             if not isinstance(field.field_info, BaseIndex):
                 fields[name] = field
         return fields
+
+    @classmethod
+    def get_query_signature(cls, default=None):
+        params = []
+        for name in cls.__fields__:
+            for type_ in cls.mro():
+                if name in getattr(type_, '__annotations__', {}):
+                    label_annotation = type_.__annotations__[name]
+                    annotation = Optional[Union[label_annotation,List[label_annotation]]]
+                    param = inspect.Parameter(name,
+                                            inspect.Parameter.POSITIONAL_OR_KEYWORD, 
+                                            default=default,
+                                            annotation=annotation)
+                    params.append(param)
+                    break
+        return inspect.Signature(params)
 
     @classmethod
     def get_index(cls) -> BaseIndex:
@@ -171,22 +188,6 @@ class BaseSchema(BaseModel):
         interface = get_interface(datasource, **kwargs)
         names = list(cls.get_index_fields())
         return interface.ensure_index(datasource, names)
-
-    @classmethod
-    def get_query_signature(cls):
-        params = []
-        for name in cls.__fields__:
-            for type_ in cls.mro():
-                if name in getattr(type_, '__annotations__', {}):
-                    label_annotation = type_.__annotations__[name]
-                    annotation = Union[label_annotation, List[label_annotation]]
-                    param = inspect.Parameter(name,
-                                            inspect.Parameter.KEYWORD_ONLY, 
-                                            default=None,
-                                            annotation=annotation)
-                    params.append(param)
-                    break
-        return inspect.Signature(params)
 
     @property
     def index_labels(self):
