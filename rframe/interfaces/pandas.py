@@ -24,7 +24,7 @@ class PandasBaseQuery(BaseDataQuery):
 
     def execute(self, limit: int = None, skip: int = None):
         df = self.apply_selection(self.df)
-        if df.index.names:
+        if df.index.names or df.index.name:
             df = df.reset_index()
         if limit is not None:
             start = skip * self.index.DOCS_PER_LABEL if skip is not None else 0
