@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, List
+from typing import Any, List, Union
 
 import pandas as pd
 
@@ -14,6 +14,10 @@ class PandasBaseQuery(BaseDataQuery):
         self.df = df
         self.column = column
         self.label = label
+    
+    @property
+    def labels(self):
+        return {self.column: self.label}
 
     def apply_selection(self, df):
         raise NotImplementedError
@@ -27,21 +31,51 @@ class PandasBaseQuery(BaseDataQuery):
             limit = limit * self.index.DOCS_PER_LABEL
             df = df.iloc[start:limit]
         docs = df.to_dict(orient="records")
-        labels = {self.column: self.label}
-        docs = self.index.reduce(docs, labels)
+        docs = self.index.reduce(docs, self.labels)
         return docs
 
-    def min(self, field: str):
+    def min(self, fields: Union[str,List[str]]):
+        if isinstance(fields, str):
+            fields = [fields]
         df = self.apply_selection(self.df)
-        return df[field].min()
+        results = {}
+        for field in fields:
+            if field in df.index.names:
+                df = df.reset_index()
+            results[field] = df[field].min()
+        if len(fields) == 1:
+            return results[fields[0]]
+        return results
 
-    def max(self, field: str):
+    def max(self, fields: Union[str,List[str]]):
+        if isinstance(fields, str):
+            fields = [fields]
         df = self.apply_selection(self.df)
-        return df[field].max()
+        results = {}
+        for field in fields:
+            if field in df.index.names:
+                df = df.reset_index()
+            results[field] = df[field].max()
+        if len(fields) == 1:
+            return results[fields[0]]
+        return results
     
-    def unique(self, field):
+    def unique(self, fields: Union[str,List[str]]):
+        if isinstance(fields, str):
+            fields = [fields]
         df = self.apply_selection(self.df)
-        return df[field].unique()
+        results = {}
+        for field in fields:
+            if field in df.index.names:
+                df = df.reset_index()
+            results[field] = list(df[field].unique())
+        if len(fields) == 1:
+            return results[fields[0]]
+        return results
+
+    def count(self):
+        df = self.apply_selection(self.df)
+        return len(df)/self.index.DOCS_PER_LABEL
 
 class PandasSimpleQuery(PandasBaseQuery):
     def apply_selection(self, df):
@@ -130,6 +164,10 @@ class PandasMultiQuery(PandasBaseQuery):
         self.df = df
         self.queries = queries
 
+    @property
+    def labels(self):
+        return {query.column: query.label for query in self.queries}
+
     def apply_selection(self, df):
         for query in self.queries:
             if isinstance(query, PandasInterpolationQuery):
@@ -142,18 +180,6 @@ class PandasMultiQuery(PandasBaseQuery):
                 df = query.apply_selection(df)
         return df
 
-    def execute(self, limit: int = None, skip: int = None):
-        df = self.apply_selection(self.df)
-        if df.index.names:
-            df = df.reset_index()
-        if limit is not None:
-            start = skip * self.index.DOCS_PER_LABEL if skip is not None else 0
-            limit = limit * self.index.DOCS_PER_LABEL
-            df = df.iloc[start:limit]
-        docs = df.to_dict(orient="records")
-        labels = {query.column: query.label for query in self.queries}
-        docs = self.index.reduce(docs, labels)
-        return docs
 
 @DatasourceInterface.register_interface(pd.DataFrame)
 class PandasInterface(DatasourceInterface):

@@ -17,6 +17,19 @@ class RestQuery(BaseDataQuery):
     def execute(self, limit: int = None, skip: int = None):
         return self.client.query(**self.params, limit=limit, skip=skip)
 
+    def unique(self, field):
+        return self.client.unique(field, **self.params)
+    
+    def max(self, field):
+        return self.client.max(field, **self.params)
+    
+    def min(self, field):
+        return self.client.min(field, **self.params)
+
+    def count(self):
+        return self.client.count(**self.params)
+
+
 def serializable_interval(interval):
     if isinstance(interval, list):
         return [serializable_interval(iv) for iv in interval]

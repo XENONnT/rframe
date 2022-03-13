@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-
+from typing import List, Union
 from rframe import interfaces
 
 
@@ -9,15 +9,17 @@ class BaseDataQuery(ABC):
     def execute(self, limit=None, offset=None):
         pass
 
-    def unique(self, field):
+    def unique(self, fields: Union[str, List[str]]):
         raise NotImplementedError
     
-    def max(self, field):
+    def max(self, fields: Union[str, List[str]]):
         raise NotImplementedError
     
-    def min(self, field):
+    def min(self, fields: Union[str, List[str]]):
         raise NotImplementedError
     
+    def count(self):
+        raise NotImplementedError
 
 class DatasourceInterface(ABC):
     _INTERFACES = {}

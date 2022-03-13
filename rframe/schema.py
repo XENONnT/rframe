@@ -175,19 +175,36 @@ class BaseSchema(BaseModel):
         return interface.ensure_index(datasource, names)
 
     @classmethod
-    def unique(cls, field: str, datasource=None, **labels):
+    def unique(cls, datasource=None, fields: Union[str,List[str]] = None, **labels):
+        if fields is None:
+            fields = list(cls.get_column_fields())
+        elif isinstance(fields, str):
+            fields = [fields]
         query = cls.compile_query(datasource, **labels)
-        return query.unique(field)
+        return query.unique(fields)
 
     @classmethod
-    def min(cls, field: str, datasource=None, **labels):
+    def min(cls, datasource=None, fields: Union[str,List[str]] = None, **labels):
+        if fields is None:
+            fields = list(cls.get_column_fields())
+        elif isinstance(fields, str):
+            fields = [fields]
         query = cls.compile_query(datasource, **labels)
-        return query.min(field)
+        return query.min(fields)
 
     @classmethod
-    def max(cls, field: str, datasource=None, **labels):
+    def max(cls, datasource=None, fields: Union[str,List[str]] = None, **labels):
+        if fields is None:
+            fields = list(cls.get_column_fields())
+        elif isinstance(fields, str):
+            fields = [fields]
         query = cls.compile_query(datasource, **labels)
-        return query.max(field)
+        return query.max(fields)
+        
+    @classmethod
+    def count(cls, datasource=None, **labels):
+        query = cls.compile_query(datasource, **labels)
+        return query.count()
 
     @property
     def index_labels(self):

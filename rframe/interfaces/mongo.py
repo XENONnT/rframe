@@ -1,4 +1,5 @@
 from itertools import product
+from typing import List, Union
 from warnings import warn
 
 import pandas as pd
@@ -66,44 +67,71 @@ try:
             if limit is not None:
                 raw_limit = limit * self.index.DOCS_PER_LABEL
                 pipeline.append({"$limit": raw_limit})
+            
             pipeline.append({"$project": { "_id": 0}})
+
             docs = list(self.collection.aggregate(pipeline, allowDiskUse=True))
 
             docs = self.index.reduce(docs, self.labels)
-            return docs[:limit]
+            return docs
 
-        def unique(self, field: str):
-            pipeline = list(self.pipeline)
-            pipeline.append({
-                "$group": {
-                    "_id": "$" + field,
-                    'first': { '$first':  "$" + field },
-                }
+        def unique(self, fields: Union[str, List[str]]):
+            if isinstance(fields, str):
+                fields = [fields]
+            results = {}
+            for field in fields:
+                pipeline = list(self.pipeline)
+                pipeline.append({
+                    "$group": {
+                        "_id": "$" + field,
+                        'first': { '$first':  "$" + field },
+                    }
+                    })
+                    
+                results[field] = [doc['first'] for doc in self.collection.aggregate(pipeline, allowDiskUse=True)]
+            if len(fields) == 1:
+                return results[fields[0]]
+            return results
+        
+        def max(self, fields: Union[str, List[str]]):
+            if isinstance(fields, str):
+                fields = [fields]
+            results = {}
+            for field in fields:
+                pipeline = list(self.pipeline)
+                pipeline.append({
+                    "$sort": { field: -1}
                 })
-            values = [doc['first'] for doc in self.collection.aggregate(pipeline, allowDiskUse=True)]
-            return set(values)
-        
-        def max(self, field: str):
+                pipeline.append({"$limit": 1})
+                pipeline.append({"$project": { "_id": 0}})
+                results[field] = next(self.collection.aggregate(pipeline, allowDiskUse=True))[field]
+
+            if len(fields) == 1:
+                return results[fields[0]]
+            return results
+
+        def min(self, fields: Union[str, List[str]]):
+            if isinstance(fields, str):
+                fields = [fields]
+            results = {}
+            for field in fields:
+                pipeline = list(self.pipeline)
+                pipeline.append({
+                    "$sort": { field: 1}
+                })
+                pipeline.append({"$limit": 1})
+                pipeline.append({"$project": { "_id": 0}})
+                results[field] = next(self.collection.aggregate(pipeline, allowDiskUse=True))[field]
+
+            if len(fields) == 1:
+                return results[fields[0]]
+            return results
+
+        def count(self):
             pipeline = list(self.pipeline)
-            pipeline.append({
-                "$sort": { field: -1}
-            })
-
-            results = list(self.collection.aggregate(pipeline, allowDiskUse=True))
-
-            if len(results):
-                return results[0][field]
-        
-        def min(self, field: str):
-            pipeline = list(self.pipeline)
-            pipeline.append({
-                "$sort": { field: 1}
-            })
-            pipeline.append({"$limit": 1})
-            results = list(self.collection.aggregate(pipeline, allowDiskUse=True))
-
-            if len(results):
-                return results[0][field]
+            pipeline.append({"$count": "count"})
+            result = next(self.collection.aggregate(pipeline, allowDiskUse=True))
+            return result.get('count', None) / self.index.DOCS_PER_LABEL
 
         def logical_and(self, other):
             index = MultiIndex(self.index, other.index)

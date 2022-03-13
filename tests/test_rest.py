@@ -61,7 +61,8 @@ class TestRest(unittest.TestCase):
         datasource = self.datasources[SimpleSchema]
 
         doc.save(datasource)
-        doc_found = doc.find_one(datasource, **doc.index_labels)
+        doc_found = SimpleSchema.find_one(datasource, **doc.index_labels)
+        self.assertIsNotNone(doc_found)
         assert doc.same_values(doc_found)
 
     @given(st.lists(st.builds(SimpleSchema), unique_by=lambda x: x.index, min_size=1, max_size=100))
