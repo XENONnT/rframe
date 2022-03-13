@@ -2,7 +2,6 @@ from __future__ import annotations
 import inspect
 
 import pandas as pd
-from pexpect import ExceptionPexpect
 from pydantic import BaseModel
 from pydantic.fields import FieldInfo, ModelField
 from typing import Dict, List, Mapping, Optional, Union
