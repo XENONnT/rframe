@@ -51,20 +51,34 @@ class TestMongo(unittest.TestCase):
                     min_size=1, max_size=100))
     def test_frame(self, docs: List[SimpleSchema]):
         self.collection.delete_many({})
+        
         rf = rframe.RemoteFrame(SimpleSchema, self.collection)
+
         for doc in docs:
             doc.save(self.collection)
-        df = pd.DataFrame([doc.dict() for doc in docs])
+
+        df = pd.DataFrame([doc.dict() for doc in docs]).set_index('index')
         df2 = rf.sel()
         assert len(df) == len(df2)
 
-    @given(
-        st.lists(
-            st.builds(InterpolatingSchema).filter(lambda x: abs(x.index) < 2**7),
-            unique_by=lambda x: x.index,
-            min_size=2,
-            max_size=100,
-        )
-    )
-    def test_interpolated(self, docs: InterpolatingSchema):
-        pass
+        pd.testing.assert_frame_equal(df.sort_index(), df2.sort_index())
+
+        self.assertEqual(rf['value'].max(), df['value'].max())
+
+        self.assertEqual(rf['value'].min(), df['value'].min())
+
+        n = max(1, min(len(df)//2, 10) )
+        self.assertEqual(n, len(rf.head(n)))
+
+        self.assertEqual(sorted(rf['value'].unique()), sorted(df['value'].unique()))
+
+    # @given(
+    #     st.lists(
+    #         st.builds(InterpolatingSchema).filter(lambda x: abs(x.index) < 2**7),
+    #         unique_by=lambda x: x.index,
+    #         min_size=2,
+    #         max_size=100,
+    #     )
+    # )
+    # def test_interpolated(self, docs: InterpolatingSchema):
+    #     pass

@@ -62,10 +62,10 @@ try:
         def execute(self, limit: int = None, skip: int = None):
             pipeline = list(self.pipeline)
             if skip is not None:
-                raw_skip = skip * self.index.DOCS_PER_LABEL
+                raw_skip = int(skip * self.index.DOCS_PER_LABEL)
                 pipeline.append({"$skip": raw_skip})
             if limit is not None:
-                raw_limit = limit * self.index.DOCS_PER_LABEL
+                raw_limit = int(limit * self.index.DOCS_PER_LABEL)
                 pipeline.append({"$limit": raw_limit})
             
             pipeline.append({"$project": { "_id": 0}})

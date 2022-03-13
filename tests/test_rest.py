@@ -75,18 +75,32 @@ class TestRest(unittest.TestCase):
 
         for doc in docs:
             doc.save(datasource)
+        
         df = pd.DataFrame([doc.dict() for doc in docs]).set_index('index')
+        
         df2 = rf.sel()
         assert isinstance(df2, pd.DataFrame)
         assert len(df) == len(df2)
+
         pd.testing.assert_frame_equal(df.sort_index(), df2.sort_index())
 
-    @given(
-        st.lists(
-            st.builds(InterpolatingSchema).filter(lambda x: abs(x.index) < 2**7),
-            unique_by=lambda x: x.index,
-            min_size=2,
-        )
-    )
-    def test_interpolated(self, docs: InterpolatingSchema):
-        pass
+        max_value = rf['value'].max()
+        self.assertEqual(max_value, df['value'].max())
+
+        min_value = rf['value'].min()
+        self.assertEqual(min_value, df['value'].min())
+
+        n = max(1, min(len(df)//2, 10) )
+        self.assertEqual(n, len(rf.head(n)))
+
+        self.assertEqual(sorted(rf['value'].unique()), sorted(df['value'].unique()))
+
+    # @given(
+    #     st.lists(
+    #         st.builds(InterpolatingSchema).filter(lambda x: abs(x.index) < 2**7),
+    #         unique_by=lambda x: x.index,
+    #         min_size=2,
+    #     )
+    # )
+    # def test_interpolated(self, docs: InterpolatingSchema):
+    #     pass

@@ -77,22 +77,23 @@ class RemoteFrame:
         """Return first n documents as a pandas dataframe"""
         query = self.schema.compile_query(self.db)
         docs = query.execute(limit=n)
-        index_fields = self.schema.index_names()
-        df = pd.DataFrame(docs, columns=self.schema.all_fields())
+        index_fields = list(self.schema.get_index_fields())
+        all_fields = index_fields + self.columns
+        df = pd.DataFrame(docs, columns=all_fields)
         idx = [c for c in index_fields if c in df.columns]
         return df.sort_values(idx).set_index(idx)
 
-    def unique(self, column: str):
+    def unique(self, columns: Union[str, List[str]]):
         """Return unique values for each column"""
-        return self.schema.unique(column, self.db)
+        return self.schema.unique(self.db, fields=columns)
 
-    def min(self, column: str) -> Any:
+    def min(self, columns: Union[str, List[str]]) -> Any:
         """Return the minimum value for column"""
-        return self.schema.min(column, self.db)
+        return self.schema.min(self.db, fields=columns )
 
-    def max(self, column: str) -> Any:
+    def max(self, columns: Union[str, List[str]]) -> Any:
         """Return the maximum value for column"""
-        return self.schema.max(column, self.db)
+        return self.schema.max(self.db, fields=columns)
 
     def sel(self, *args: IndexLabel, **kwargs: IndexLabel) -> pd.DataFrame:
         """select a subset of the data

@@ -36,16 +36,52 @@ class TestPandas(unittest.TestCase):
         df = pd.DataFrame([doc.dict() for doc in docs]).set_index('index')
 
         rf = rframe.RemoteFrame(SimpleSchema, df)
+
         df2 = rf.sel()
         pd.testing.assert_frame_equal(df.sort_index(), df2.sort_index())
 
-    @given(
-        st.lists(
-            st.builds(InterpolatingSchema).filter(lambda x: abs(x.index) < 2**7),
-            unique_by=lambda x: x.index,
-            min_size=2,
-            max_size=100,
-        )
-    )
-    def test_interpolated(self, docs: InterpolatingSchema):
-        pass
+        pd.testing.assert_frame_equal(df.sort_index(), df2.sort_index())
+
+        max_value = rf['value'].max()
+        self.assertEqual(max_value, df['value'].max())
+
+        min_value = rf['value'].min()
+        self.assertEqual(min_value, df['value'].min())
+
+        n = max(1, min(len(df)//2, 10) )
+        self.assertEqual(n, len(rf.head(n)))
+
+        self.assertEqual(sorted(rf['value'].unique()), sorted(df['value'].unique()))
+
+    # @given(
+    #     st.lists(
+    #         st.builds(InterpolatingSchema).filter(lambda x: abs(x.index) < 2**7),
+    #         unique_by=lambda x: x.index,
+    #         min_size=2,
+    #         max_size=100,
+    #     )
+    # )
+    # def test_interpolated(self, docs: InterpolatingSchema):
+    #     pass
+    
+    # @given(
+    #     st.lists(
+    #         st.builds(IntegerIntervalSchema).filter(lambda x: abs(x.index.left) < 2**7),
+    #         unique_by=lambda x: x.index.left,
+    #         min_size=2,
+    #         max_size=100,
+    #     )
+    # )
+    # def test_integer_interval(self, docs: IntegerIntervalSchema):
+    #     pass
+    
+    # @given(
+    #     st.lists(
+    #         st.builds(TimeIntervalSchema).filter(lambda x: abs(x.index.left) < 2**7),
+    #         unique_by=lambda x: x.index.left,
+    #         min_size=2,
+    #         max_size=100,
+    #     )
+    # )
+    # def test_time_interval(self, docs: TimeIntervalSchema):
+    #     pass
