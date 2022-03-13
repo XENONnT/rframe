@@ -11,7 +11,7 @@ import rframe
 
 from .test_schema import SimpleSchema
 
-class TestMongo(unittest.TestCase):
+class TestBasic(unittest.TestCase):
     """
     Test basic functionality
 

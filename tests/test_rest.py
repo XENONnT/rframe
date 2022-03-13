@@ -71,14 +71,14 @@ class TestRest(unittest.TestCase):
         datasource = self.datasources[SimpleSchema]
 
         rf = rframe.RemoteFrame(SimpleSchema, datasource)
-        
+
         for doc in docs:
             doc.save(datasource)
         df = pd.DataFrame([doc.dict() for doc in docs]).set_index('index')
         df2 = rf.sel()
         assert isinstance(df2, pd.DataFrame)
         assert len(df) == len(df2)
-        pd.testing.assert_frame_equal(df.sort_values(['index','value']), df2.sort_values(['index','value']))
+        pd.testing.assert_frame_equal(df.sort_index(), df2.sort_index())
 
     @given(
         st.lists(

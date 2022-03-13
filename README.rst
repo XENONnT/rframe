@@ -17,7 +17,7 @@ rframe
 
 
 Dataframe-like indexing on database tables
-
+   
 
 * Free software: MIT
 * Documentation: https://rframe.readthedocs.io.
