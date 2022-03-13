@@ -42,7 +42,7 @@ sphinx-material = "*"
 nbsphinx = "*"
 invoke = "^1.6.0"
 hypothesis = "^6.37.2"
-pymongo = "*"
+pymongo = "<4.0"
 black = "^22.1.0"
 fastapi = "^0.75.0"
 
