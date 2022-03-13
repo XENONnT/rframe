@@ -54,5 +54,7 @@ class IntervalIndex(BaseIndex):
 
     def from_pandas(self, label):
         if isinstance(label, pd.Interval):
-            label = Interval(left=label.left, right=label.right)
+            type_ = type(label.left)
+            interval_class = Interval[type_]
+            label = interval_class(left=label.left, right=label.right)
         return label

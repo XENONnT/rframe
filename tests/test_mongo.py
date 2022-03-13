@@ -11,12 +11,12 @@ import rframe
 
 from .test_schema import *
 
+DB_NAME = "rframe_tests"
+COLLECTION_NAME = "mongo_test"
 
-def mongo_uri_not_set():
-    return "TEST_MONGO_URI" not in os.environ
+MONGO_URI = os.environ.get("TEST_MONGO_URI")
 
-
-@unittest.skipIf(mongo_uri_not_set(), "No access to test database")
+@unittest.skipIf(MONGO_URI is None, "No access to test database")
 class TestMongo(unittest.TestCase):
     """
     Test the Mongodb interface
@@ -30,13 +30,15 @@ class TestMongo(unittest.TestCase):
 
     def setUp(self):
         # Just to make sure we are running some mongo server, see test-class docstring
-        uri = os.environ.get("TEST_MONGO_URI")
-        db_name = "rframe"
-        collection_name = "test"
-        client = pymongo.MongoClient(uri)
-        database = client[db_name]
-        self.collection = database[collection_name]
+        
+        client = pymongo.MongoClient(MONGO_URI)
+        database = client[DB_NAME]
+        self.collection = database[COLLECTION_NAME]
 
+    def tearDown(self):
+        client = pymongo.MongoClient(MONGO_URI)
+        client.drop_database(DB_NAME)
+    
     @given(st.builds(SimpleSchema))
     def test_insert(self, doc: SimpleSchema):
         self.collection.delete_many({})
@@ -44,7 +46,9 @@ class TestMongo(unittest.TestCase):
         doc_found = doc.find_one(self.collection, **doc.index_labels)
         assert doc.same_values(doc_found)
 
-    @given(st.lists(st.builds(SimpleSchema), unique_by=lambda x: x.index, min_size=1))
+    @given(st.lists(st.builds(SimpleSchema),
+                    unique_by=lambda x: x.index,
+                    min_size=1, max_size=100))
     def test_frame(self, docs: List[SimpleSchema]):
         self.collection.delete_many({})
         rf = rframe.RemoteFrame(SimpleSchema, self.collection)
@@ -59,6 +63,7 @@ class TestMongo(unittest.TestCase):
             st.builds(InterpolatingSchema).filter(lambda x: abs(x.index) < 2**7),
             unique_by=lambda x: x.index,
             min_size=2,
+            max_size=100,
         )
     )
     def test_interpolated(self, docs: InterpolatingSchema):

@@ -1,16 +1,16 @@
 from typing import Union
 
-from ..http_client import BaseHttpClient, HttpClient
+from .base import BaseDataQuery, DatasourceInterface
 from ..indexes import Index, InterpolatingIndex, IntervalIndex, MultiIndex
 from ..utils import singledispatchmethod
-from .base import BaseDataQuery, DatasourceInterface
+from ..rest_client import BaseRestClient, RestClient
 
 
-class HttpQuery(BaseDataQuery):
-    client: BaseHttpClient
+class RestQuery(BaseDataQuery):
+    client: BaseRestClient
     params: dict
 
-    def __init__(self, client: BaseHttpClient, params=None):
+    def __init__(self, client: BaseRestClient, params=None):
         self.client = client
         self.params = params if params is not None else {}
 
@@ -37,13 +37,13 @@ def serializable_interval(interval):
     return interval
 
 
-@DatasourceInterface.register_interface(BaseHttpClient)
-class HttpInterface(DatasourceInterface):
+@DatasourceInterface.register_interface(BaseRestClient)
+class RestInterface(DatasourceInterface):
 
     @classmethod
     def from_url(cls, url: str, headers=None, **kwargs):
         if url.startswith("http://") or url.startswith("https://"):
-            client = HttpClient(url, headers)
+            client = RestClient(url, headers)
             return cls(client)
 
         raise NotImplementedError
@@ -57,12 +57,12 @@ class HttpInterface(DatasourceInterface):
     @compile_query.register(InterpolatingIndex)
     @compile_query.register(Index)
     def simple_query(self, index: Union[Index,InterpolatingIndex], label):
-        return HttpQuery(self.source, {index.name: label})
+        return RestQuery(self.source, {index.name: label})
 
     @compile_query.register(IntervalIndex)
     def interval_query(self, index: IntervalIndex, interval):
         interval = serializable_interval(interval)
-        return HttpQuery(self.source, {index.name: interval})
+        return RestQuery(self.source, {index.name: interval})
 
     @compile_query.register(list)
     @compile_query.register(tuple)
@@ -78,7 +78,7 @@ class HttpInterface(DatasourceInterface):
             if idx.name in query.params:
                 params[idx.name] = query.params[idx.name]
 
-        return HttpQuery(self.source, params)
+        return RestQuery(self.source, params)
 
     def insert(self, doc):
         return self.source.insert(doc)

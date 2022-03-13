@@ -1,11 +1,68 @@
 import re
+import jsonschema
+from typing import Mapping
+from pydantic import BaseModel
+from pydantic.json import ENCODERS_BY_TYPE
+
 
 def camel_to_snake(name):
     name = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", name)
     return re.sub("([a-z0-9])([A-Z])", r"\1_\2", name).lower()
 
+
 def snake_to_camel(name):
     return name.title().replace("_", "")
+
+
+def jsonable(obj):
+    if isinstance(obj, BaseModel):
+        return obj.dict()
+
+    if isinstance(obj, Mapping):
+        return {k: jsonable(v) for k, v in obj.items()}
+
+    if isinstance(obj, (list, set, frozenset, tuple)):
+        return [jsonable(v) for v in obj]
+
+    if isinstance(obj, (str, int, float, type(None))):
+        return obj
+
+    if type(obj) in ENCODERS_BY_TYPE:
+        return ENCODERS_BY_TYPE[type(obj)](obj)
+    
+    raise TypeError(f"Cannot convert {type(obj)} to JSON")
+
+
+def as_bson_schema(schema, resolver=None):
+    
+    if not isinstance(schema, dict):
+        return schema
+
+    if resolver is None:
+        resolver = jsonschema.RefResolver.from_schema(schema)
+        
+    if '$ref' in schema:
+        return as_bson_schema(resolver.resolve(schema['$ref'])[1],
+                           resolver=resolver)
+    new = {}
+    
+    for k, v in schema.items():
+        if k in  ['definitions', 'format', 'default']:
+            continue
+        if k == 'type':
+            k = 'bsonType'
+        if v == 'integer':
+            v = 'int'
+        elif v == 'boolean':
+            v = 'bool'
+        elif v == 'string' and schema.get('format', '') == 'date-time':
+            v = 'date'
+        elif isinstance(v, dict):
+            v = as_bson_schema(v, resolver=resolver)
+        elif isinstance(v, list):
+            v = [as_bson_schema(vi, resolver=resolver) for vi in v]
+        new[k] = v
+    return new
 
 """
 Copied from python 3.8 functools for 3.7 support

@@ -309,9 +309,6 @@ try:
             except Exception as e:
                 raise InsertionError(f"Mongodb has rejected this insertion:\n {e} ")
 
-        def insert_many(self, docs):
-            raise NotImplementedError
-
         def ensure_index(self, names, order=pymongo.ASCENDING):
             self.source.ensure_index([(name, order) for name in names])
 

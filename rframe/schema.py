@@ -2,6 +2,7 @@ from __future__ import annotations
 import inspect
 
 import pandas as pd
+from pexpect import ExceptionPexpect
 from pydantic import BaseModel
 from pydantic.fields import FieldInfo, ModelField
 from typing import Dict, List, Mapping, Optional, Union
@@ -11,6 +12,9 @@ from .interfaces import get_interface
 
 
 class InsertionError(Exception):
+    pass
+
+class UpdateError(Exception):
     pass
 
 
@@ -162,7 +166,7 @@ class BaseSchema(BaseModel):
         for name in cls.get_index_fields():
             index = cls.index_for(name)
             label = record.get(name, None)
-            data[name] = index.to_pandas(label)
+            data[name] = index.from_pandas(label)
         return cls(**data)
 
     @classmethod
@@ -195,31 +199,51 @@ class BaseSchema(BaseModel):
     def index_labels_tuple(self):
         return tuple(v for v in self.index_labels.values())
 
+    @property
+    def column_values(self):
+        values = self.dict()
+        return {attr: values[attr]
+                for attr in self.get_column_fields()}
+
     def save(self, datasource=None, **kwargs):
         if datasource is None:
             datasource = self.default_datasource()
         interface = get_interface(datasource, **kwargs)
         existing = self.find(datasource, **self.index_labels)
-        if existing:
-            existing[0].pre_update(datasource, self)
+        if not existing:
+            self.__pre_insert(datasource)
+        elif len(existing) == 1:
+            existing[0].__pre_update(datasource, self)
         else:
-            self.pre_insert(datasource)
+            raise InsertionError('Multiple documents match document '
+                                 f'index ({self.index_labels}). '
+                                 'Multiple update is not supported.')
+            
         return interface.insert(self)
+
+    def __pre_insert(self, datasource):
+        try:
+            self.pre_insert(datasource=datasource)
+        except Exception as e:
+            raise InsertionError(f'Cannot insert new document ({self}).'
+                                 f'The schema raised the following exception: {e}')
 
     def pre_insert(self, datasource):
         pass
+    
+    def __pre_update(self, datasource, new):
+        try:
+            self.pre_update(datasource=datasource, new=new)
+        except Exception as e:
+            raise UpdateError(f"Cannot update existing instance ({self}) "
+                              f"with new instance ({new}), the schema "
+                              f"raised the following exception: {e}")
 
     def pre_update(self, datasource, new):
         pass
 
     def same_values(self, other):
-        for attr in self.get_column_fields():
-            left, right = getattr(self, attr), getattr(other, attr)
-            if pd.isna(left) and pd.isna(right):
-                continue
-            if left != right:
-                return False
-        return True
+        return self.column_values == other.column_values
 
     def pandas_dict(self):
         data = self.dict()

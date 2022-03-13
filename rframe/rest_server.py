@@ -1,11 +1,8 @@
 
-from ast import Import
 import inspect
-
-from numpy import isin
 import makefun
 
-from typing import (Any, Callable, Dict, Generic,
+from typing import (Any, Callable,
                     List, Optional, Sequence, Type, Union)
 
 from .schema import BaseSchema
@@ -15,7 +12,6 @@ try:
     from fastapi import APIRouter, HTTPException, Query
     from fastapi.types import DecoratedCallable
     from fastapi.params import Depends
-
 
     NOT_FOUND = HTTPException(404, "Item not found")
     DEPENDENCIES = Optional[Sequence[Depends]]

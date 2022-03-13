@@ -202,3 +202,8 @@ class PandasInterface(DatasourceInterface):
         ]
 
         return PandasMultiQuery(index, self.source, queries)
+
+    def insert(self, doc):
+        index = tuple(doc.index_for(name).to_pandas(label) 
+                        for name, label in doc.index_labels.items())
+        self.source.loc[index] = doc.column_values
