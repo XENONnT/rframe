@@ -7,6 +7,12 @@ class SimpleSchema(BaseSchema):
     index: int = Index(ge=0, lt=2**8)
     value: float = Field(ge=-2**8, lt=2**8)
 
+class SimpleMultiIndexSchema(BaseSchema):
+    index1: int = Index(ge=0, lt=2**8)
+    index2: str = Index(min_length=1)
+  
+    value1: float = Field(ge=-2**8, lt=2**8)
+    value2: str
 
 class InterpolatingSchema(BaseSchema):
     index: float = InterpolatingIndex(ge=-2**8, lt=2**8)

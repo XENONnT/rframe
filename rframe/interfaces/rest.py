@@ -1,4 +1,4 @@
-from typing import Union
+from typing import List, Union
 
 from .base import BaseDataQuery, DatasourceInterface
 from ..indexes import Index, InterpolatingIndex, IntervalIndex, MultiIndex
@@ -15,16 +15,16 @@ class RestQuery(BaseDataQuery):
         self.params = params if params is not None else {}
 
     def execute(self, limit: int = None, skip: int = None):
-        return self.client.query(**self.params, limit=limit, skip=skip)
+        return self.client.query(limit=limit, skip=skip, **self.params)
 
-    def unique(self, field):
-        return self.client.unique(field, **self.params)
+    def unique(self, fields: Union[str, List[str]]):
+        return self.client.unique(fields, **self.params)
     
-    def max(self, field):
-        return self.client.max(field, **self.params)
+    def max(self, fields: Union[str, List[str]]):
+        return self.client.max(fields, **self.params)
     
-    def min(self, field):
-        return self.client.min(field, **self.params)
+    def min(self, fields: Union[str, List[str]]):
+        return self.client.min(fields, **self.params)
 
     def count(self):
         return self.client.count(**self.params)

@@ -8,8 +8,9 @@ from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
 import rframe
+from rframe.schema import UpdateError
 
-from .test_schema import *
+from .test_schemas import *
 
 DB_NAME = "rframe_tests"
 COLLECTION_NAME = "mongo_test"
@@ -71,6 +72,17 @@ class TestMongo(unittest.TestCase):
         self.assertEqual(n, len(rf.head(n)))
 
         self.assertEqual(sorted(rf['value'].unique()), sorted(df['value'].unique()))
+
+    @given(st.lists(st.builds(SimpleMultiIndexSchema),
+                    unique_by=lambda x: (x.index1,x.index2),
+                    min_size=1, max_size=100))
+    def test_simple_multi_index(self, docs: List[SimpleMultiIndexSchema]):
+        self.collection.delete_many({})
+        for doc in docs:
+            doc.save(self.collection)
+        for doc in docs:
+            doc_found = SimpleMultiIndexSchema.find_one(self.collection, **doc.index_labels)
+            assert doc.same_values(doc_found)
 
     # @given(
     #     st.lists(

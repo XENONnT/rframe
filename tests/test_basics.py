@@ -4,7 +4,7 @@ import pandas as pd
 
 import rframe
 
-from .test_schema import SimpleSchema
+from .test_schemas import SimpleSchema
 
 
 class TestBasic(unittest.TestCase):

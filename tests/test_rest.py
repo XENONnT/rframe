@@ -16,7 +16,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 
-from .test_schema import *
+from .test_schemas import *
 
 def mongo_uri_not_set():
     return "TEST_MONGO_URI" not in os.environ
@@ -94,6 +94,20 @@ class TestRest(unittest.TestCase):
         self.assertEqual(n, len(rf.head(n)))
 
         self.assertEqual(sorted(rf['value'].unique()), sorted(df['value'].unique()))
+
+    @given(st.lists(st.builds(SimpleMultiIndexSchema),
+                    unique_by=lambda x: (x.index1,x.index2),
+                    min_size=1, max_size=100))
+    @settings(deadline=None)
+    def test_simple_multi_index(self, docs: List[SimpleMultiIndexSchema]):
+        self.collections[SimpleMultiIndexSchema].delete_many({})
+        datasource = self.datasources[SimpleMultiIndexSchema]
+        for doc in docs:
+            doc.save(datasource)
+
+        for doc in docs:
+            doc_found = SimpleMultiIndexSchema.find_one(datasource, **doc.index_labels)
+            assert doc.same_values(doc_found)
 
     # @given(
     #     st.lists(

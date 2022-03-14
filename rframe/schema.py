@@ -259,6 +259,10 @@ class BaseSchema(BaseModel):
         pass
 
     def same_values(self, other):
+        if other is None:
+            return False
+        if not isinstance(other, BaseSchema):
+            return False
         return self.column_values == other.column_values
 
     def pandas_dict(self):

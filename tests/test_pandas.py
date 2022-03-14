@@ -9,7 +9,7 @@ from hypothesis import strategies as st
 
 import rframe
 
-from .test_schema import *
+from .test_schemas import *
 
 
 class TestPandas(unittest.TestCase):
@@ -52,6 +52,15 @@ class TestPandas(unittest.TestCase):
         self.assertEqual(n, len(rf.head(n)))
 
         self.assertEqual(sorted(rf['value'].unique()), sorted(df['value'].unique()))
+
+    @given(st.lists(st.builds(SimpleMultiIndexSchema),
+                    unique_by=lambda x: (x.index1,x.index2),
+                    min_size=1, max_size=100))
+    def test_simple_multi_index(self, docs: List[SimpleMultiIndexSchema]):
+        df = pd.DataFrame([doc.dict() for doc in docs]).set_index(['index1', 'index2'])
+        for doc in docs:
+            doc_found = SimpleMultiIndexSchema.find_one(df, **doc.index_labels)
+            assert doc.same_values(doc_found)
 
     # @given(
     #     st.lists(
