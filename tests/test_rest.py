@@ -28,7 +28,6 @@ class TestRest(unittest.TestCase):
     Test the Rest interface
 
     """
-    
 
     def setUp(self):
         uri = os.environ.get("TEST_MONGO_URI")
@@ -39,7 +38,7 @@ class TestRest(unittest.TestCase):
         app = FastAPI()
         self.datasources = {}
         self.collections = {}
-        for name, schema in SCHEMAS.items():
+        for name, schema in TEST_SCHEMAS.items():
             collection = db[name]
             self.collections[schema] = collection
             router = rframe.SchemaRouter(
@@ -50,71 +49,41 @@ class TestRest(unittest.TestCase):
             app.include_router(router)
 
         client = TestClient(app)
-        for name, schema in SCHEMAS.items():
+        for name, schema in TEST_SCHEMAS.items():
             source = rframe.RestClient('/'+name, client=client)
             self.datasources[schema] = source
 
-    @given(st.builds(SimpleSchema))
+    @given(SimpleSchema.list_strategy())
     @settings(deadline=None)
-    def test_insert(self, doc: SimpleSchema):
+    def test_simple_schema(self, docs: List[SimpleSchema]):
         self.collections[SimpleSchema].delete_many({})
         datasource = self.datasources[SimpleSchema]
-
-        doc.save(datasource)
-        doc_found = SimpleSchema.find_one(datasource, **doc.index_labels)
-        self.assertIsNotNone(doc_found)
-        assert doc.same_values(doc_found)
-
-    @given(st.lists(st.builds(SimpleSchema), unique_by=lambda x: x.index, min_size=1, max_size=100))
-    @settings(deadline=None)
-    def test_frame(self, docs: List[SimpleSchema]):
-        self.collections[SimpleSchema].delete_many({})
-        datasource = self.datasources[SimpleSchema]
-
-        rf = rframe.RemoteFrame(SimpleSchema, datasource)
-
-        for doc in docs:
-            doc.save(datasource)
-        
-        df = pd.DataFrame([doc.dict() for doc in docs]).set_index('index')
-        
-        df2 = rf.sel()
-        assert isinstance(df2, pd.DataFrame)
-        assert len(df) == len(df2)
-
-        pd.testing.assert_frame_equal(df.sort_index(), df2.sort_index())
-
-        max_value = rf['value'].max()
-        self.assertEqual(max_value, df['value'].max())
-
-        min_value = rf['value'].min()
-        self.assertEqual(min_value, df['value'].min())
-
-        n = max(1, min(len(df)//2, 10) )
-        self.assertEqual(n, len(rf.head(n)))
-
-        self.assertEqual(sorted(rf['value'].unique()), sorted(df['value'].unique()))
-
-    @given(st.lists(st.builds(SimpleMultiIndexSchema),
-                    unique_by=lambda x: (x.index1,x.index2),
-                    min_size=1, max_size=100))
+        SimpleSchema.test(self, datasource, docs)
+       
+    @given(SimpleMultiIndexSchema.list_strategy())
     @settings(deadline=None)
     def test_simple_multi_index(self, docs: List[SimpleMultiIndexSchema]):
         self.collections[SimpleMultiIndexSchema].delete_many({})
         datasource = self.datasources[SimpleMultiIndexSchema]
-        for doc in docs:
-            doc.save(datasource)
+        SimpleMultiIndexSchema.test(self, datasource, docs)
 
-        for doc in docs:
-            doc_found = SimpleMultiIndexSchema.find_one(datasource, **doc.index_labels)
-            assert doc.same_values(doc_found)
+    @given(InterpolatingSchema.list_strategy())
+    @settings(deadline=None)
+    def test_interpolated(self, docs: InterpolatingSchema):
+        self.collections[InterpolatingSchema].delete_many({})
+        datasource = self.datasources[InterpolatingSchema]
+        InterpolatingSchema.test(self, datasource, docs)
 
-    # @given(
-    #     st.lists(
-    #         st.builds(InterpolatingSchema).filter(lambda x: abs(x.index) < 2**7),
-    #         unique_by=lambda x: x.index,
-    #         min_size=2,
-    #     )
-    # )
-    # def test_interpolated(self, docs: InterpolatingSchema):
-    #     pass
+    @given(IntegerIntervalSchema.list_strategy())
+    @settings(deadline=None)
+    def test_integer_interval(self, docs: IntegerIntervalSchema):
+        self.collections[IntegerIntervalSchema].delete_many({})
+        datasource = self.datasources[IntegerIntervalSchema]
+        IntegerIntervalSchema.test(self, datasource, docs)
+
+    @given(TimeIntervalSchema.list_strategy())
+    @settings(deadline=None)
+    def test_time_interval(self, docs: TimeIntervalSchema):
+        self.collections[TimeIntervalSchema].delete_many({})
+        datasource = self.datasources[TimeIntervalSchema]
+        TimeIntervalSchema.test(self, datasource, docs)

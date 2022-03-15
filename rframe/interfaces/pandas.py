@@ -1,3 +1,4 @@
+from loguru import logger
 from datetime import datetime
 from typing import Any, List, Union
 
@@ -23,15 +24,21 @@ class PandasBaseQuery(BaseDataQuery):
         raise NotImplementedError
 
     def execute(self, limit: int = None, skip: int = None):
+        logger.debug('Applying pandas dataframe selection')
+
+        if not len(self.df):
+            return []
         df = self.apply_selection(self.df)
+       
         if df.index.names or df.index.name:
             df = df.reset_index()
         if limit is not None:
             start = skip * self.index.DOCS_PER_LABEL if skip is not None else 0
-            limit = limit * self.index.DOCS_PER_LABEL
+            limit = start + limit * self.index.DOCS_PER_LABEL
             df = df.iloc[start:limit]
         docs = df.to_dict(orient="records")
         docs = self.index.reduce(docs, self.labels)
+        logger.debug(f'Done. Found {len(docs)} documents.')
         return docs
 
     def min(self, fields: Union[str,List[str]]):
@@ -75,7 +82,7 @@ class PandasBaseQuery(BaseDataQuery):
 
     def count(self):
         df = self.apply_selection(self.df)
-        return len(df)/self.index.DOCS_PER_LABEL
+        return len(df)
 
 class PandasSimpleQuery(PandasBaseQuery):
     def apply_selection(self, df):
@@ -154,7 +161,8 @@ class PandasInterpolationQuery(PandasBaseQuery):
             # same as before
             after = after.sort_values(self.column, ascending=True).head(limit)
             rows.append(after)
-
+        if not rows:
+            return df.head(0)
         return pd.concat(rows)
 
 
@@ -169,13 +177,28 @@ class PandasMultiQuery(PandasBaseQuery):
         return {query.column: query.label for query in self.queries}
 
     def apply_selection(self, df):
+        if len(self.queries) == 1:
+            return self.queries[0].apply_selection(df)
+
         for query in self.queries:
             if isinstance(query, PandasInterpolationQuery):
                 selections = []
                 others = [q.column for q in self.queries if q is not query]
+                if not others:
+                    df = query.apply_selection(df)
+                    continue
+
                 for _, pdf in df.groupby(others):
-                    selections.append(query.apply_selection(pdf).reset_index())
-                df = pd.concat(selections)
+                    selection = query.apply_selection(pdf).reset_index()
+                    selections.append(selection)
+
+                selections = [s for s in selections if len(s)]
+                if not selections:
+                    df = df.head(0)
+                elif len(selections) == 1:
+                    df = selections[0]
+                else:
+                    df = pd.concat(selections)
             else:
                 df = query.apply_selection(df)
         return df
@@ -230,6 +253,11 @@ class PandasInterface(DatasourceInterface):
         return PandasMultiQuery(index, self.source, queries)
 
     def insert(self, doc):
-        index = tuple(doc.index_for(name).to_pandas(label) 
+        schema = doc.__class__
+        index = tuple(schema.index_for(name).to_pandas(label)
                         for name, label in doc.index_labels.items())
-        self.source.loc[index] = doc.column_values
+        if len(index) == 1:
+            index = index[0]
+        self.source.loc[index,:] = doc.column_values
+
+    update = insert

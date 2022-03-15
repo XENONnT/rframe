@@ -8,8 +8,9 @@ from .types import Interval, TimeInterval
 
 
 class IntervalIndex(BaseIndex):
+    
     __slots__ = BaseIndex.__slots__ + ("closed",)
-
+    
     def __set_name__(self, owner, name):
         super().__set_name__(owner, name)
 

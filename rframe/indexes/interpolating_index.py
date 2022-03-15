@@ -61,13 +61,15 @@ class InterpolatingIndex(BaseIndex):
         return self.extrapolate
 
     def reduce(self, docs, label):
-        if label is None:
-            return docs
-
+     
         if isinstance(label, list):
             return [d for val in label for d in self.reduce(docs, val)]
 
         label = self.validate_label(label)
+        
+        if not docs or label is None:
+            return docs
+
         x = label.timestamp() if isinstance(label, datetime.datetime) else label
 
         xs = [self.validate_label(d[self.name]) for d in docs]
@@ -75,9 +77,12 @@ class InterpolatingIndex(BaseIndex):
         # just convert all datetimes to timestamps to avoid complexity
         # FIXME: maybe properly handle timezones instead
         xs = [xi.timestamp() if isinstance(xi, datetime.datetime) else xi for xi in xs]
-
-        new_document = dict(nn_interpolate(x, xs, docs))
-        new_document[self.name] = label
+        
+        if len(docs) == 1:
+            new_document = docs[0]
+        else:
+            new_document = dict(nn_interpolate(x, xs, docs))
+        new_document = dict(new_document, **{self.name: label})
 
         if len(xs) > 1 and max(xs) >= x >= min(xs):
             for yname in self.schema.get_column_fields():

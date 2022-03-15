@@ -14,6 +14,14 @@ def snake_to_camel(name):
     return name.title().replace("_", "")
 
 
+def get_all_subclasses(type_):
+    subclasses = []
+    for subclass in type_.__subclasses__():
+        subclasses.append(subclass)
+        subclasses.extend(get_all_subclasses(subclass))
+    return subclasses
+
+
 def jsonable(obj):
     if isinstance(obj, BaseModel):
         return obj.dict()

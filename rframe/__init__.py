@@ -10,3 +10,6 @@ from .schema import BaseSchema
 from .rest_client import BaseRestClient, RestClient
 from .rest_server import SchemaRouter
 from .utils import jsonable
+from loguru import logger
+
+logger.disable("rframe")

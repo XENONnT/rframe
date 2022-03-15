@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Union
 from rframe import interfaces
+from loguru import logger
 
 
 class BaseDataQuery(ABC):
@@ -46,20 +47,27 @@ class DatasourceInterface(ABC):
 
     @classmethod
     def from_source(cls, source, *args, **kwargs):
+        logger.debug(f'Looking for interface for datasource: {source}, '
+                     f'with kwargs: {kwargs}')
+
         if isinstance(source, str):
             for klass in cls._INTERFACES.values():
                 try:
                     interface = klass.from_url(source, *args, **kwargs)
+                    logger.info(f'Found interface {klass}.')
                     break
                 except NotImplementedError:
                     pass
             else:
                 raise ValueError(f"No interface found for source {source}")
+            
             return interface
   
         for type_ in type(source).mro():
             if type_ in cls._INTERFACES:
-                return cls._INTERFACES[type_](source, *args, **kwargs)
+                interface_class = cls._INTERFACES[type_]
+                logger.info(f'Found interface {interface_class}.')
+                return interface_class(source, *args, **kwargs)
 
         raise NotImplementedError(
             f"No implementation for data source of type {type(source)}"
@@ -76,5 +84,11 @@ class DatasourceInterface(ABC):
     def insert(self, doc):
         raise NotImplementedError
 
-    def insert_many(self, docs):
+    def insert_many(self, docs: list) -> list:
         return [self.insert(doc) for doc in docs]
+
+    def update(self, doc):
+        raise NotImplementedError
+
+    def update_many(self, docs: list) -> list:
+        return [self.update(doc) for doc in docs]

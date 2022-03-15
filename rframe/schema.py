@@ -1,5 +1,6 @@
 from __future__ import annotations
 import inspect
+from numpy import isin
 
 import pandas as pd
 from pydantic import BaseModel
@@ -18,9 +19,10 @@ class UpdateError(Exception):
 
 
 class BaseSchema(BaseModel):
+
     @classmethod
     def default_datasource(cls):
-        raise NotImplementedError
+        return cls.empty_dframe()
 
     @classmethod
     def field_info(cls) -> Dict[str, FieldInfo]:
@@ -76,6 +78,18 @@ class BaseSchema(BaseModel):
 
     @classmethod
     def index_for(cls, name):
+        ''' Fetches index instance for the given field
+        If field_info is index type, returns it
+        otherwise return a simple Index instance.
+        This allows for queries on non-index fields.
+        '''
+        if isinstance(name, list):
+            return MultiIndex(*[cls.index_for(n) for n in name])
+
+        if name not in cls.__fields__:
+            raise KeyError(f'{name} is not a valid' 
+                           f'field for schema {cls.__name__}')
+
         field_info = cls.field_info().get(name, None)
         if not isinstance(field_info, BaseIndex):
             field_info = Index()
@@ -84,6 +98,9 @@ class BaseSchema(BaseModel):
 
     @classmethod
     def rframe(cls, datasource=None):
+        ''' Contruct a RemoteFrame from this schema and
+        datasource.
+        '''
         import rframe
 
         if datasource is None:
@@ -92,6 +109,10 @@ class BaseSchema(BaseModel):
 
     @classmethod
     def extract_labels(cls, **kwargs):
+        ''' Extract query labels from kwargs
+
+        returns extracted labels and remaining kwargs
+        '''
         labels = {}
         for name in cls.__fields__:
             label = kwargs.pop(name, None)
@@ -108,6 +129,7 @@ class BaseSchema(BaseModel):
         for name in cls.get_index_fields():
             if name not in labels:
                 labels[name] = None
+
         indexes = [cls.index_for(name) for name in labels]
         if len(indexes) == 1:
             index = indexes[0]
@@ -126,6 +148,9 @@ class BaseSchema(BaseModel):
 
     @classmethod
     def _find(cls, datasource=None, _skip=None, _limit=None, **labels) -> List["BaseSchema"]:
+        ''' Internal find function, performs data validation but
+        returns raw dicts, not schema instances.
+        '''
 
         query = cls.compile_query(datasource=datasource, **labels)
         docs = query.execute(limit=_limit, skip=_skip)
@@ -136,17 +161,32 @@ class BaseSchema(BaseModel):
 
     @classmethod
     def find(cls, datasource=None, **labels) -> List["BaseSchema"]:
+        ''' Find documents in datasource matching the given labels
+        returns List[cls]
+        '''
         return [cls(**doc) for doc in  cls._find(datasource, **labels)]
 
     @classmethod
     def find_df(cls, datasource=None, **labels) -> pd.DateOffset:
-        return pd.json_normalize(cls._find(datasource, **labels))
+        docs = [d.pandas_dict() for d in cls.find(datasource, **labels)]
+        df = pd.json_normalize(docs)
+        if not len(df):
+            df = df.reindex(columns=list(cls.__fields__))
+        index_fields = list(cls.get_index_fields())
+        if len(index_fields) == 1:
+            index_fields = index_fields[0]
+        return df.set_index(index_fields)
+
+    @classmethod
+    def find_first(cls, datasource=None, n=1, **labels) -> "BaseSchema":
+        docs = cls._find(datasource=datasource, _limit=n, **labels)
+        return [cls(**doc) for doc in docs]
 
     @classmethod
     def find_one(cls, datasource=None, **labels) -> "BaseSchema":
-        docs = cls._find(datasource, _limit=1, **labels)
+        docs = cls.find_first(datasource=datasource, n=1, **labels)
         if docs:
-            return cls(**docs[0])
+            return docs[0]
 
     @classmethod
     def from_pandas(cls, record):
@@ -204,7 +244,7 @@ class BaseSchema(BaseModel):
     @classmethod
     def count(cls, datasource=None, **labels):
         query = cls.compile_query(datasource, **labels)
-        return query.count()
+        return int(query.count())
 
     @property
     def index_labels(self):
@@ -228,34 +268,62 @@ class BaseSchema(BaseModel):
         existing = self.find(datasource, **self.index_labels)
         if not existing:
             self.__pre_insert(datasource)
+            return interface.insert(self)
         elif len(existing) == 1:
             existing[0].__pre_update(datasource, self)
+            return interface.update(self)
         else:
             raise InsertionError('Multiple documents match document '
                                  f'index ({self.index_labels}). '
                                  'Multiple update is not supported.')
             
-        return interface.insert(self)
+        
 
     def __pre_insert(self, datasource):
+        '''This method is called  pre insertion 
+        if self.save(datasource) was called and a query on datasource
+        with self.index_labels did not return any documents.
+
+        raises an InsertionError if user defined checks fail.
+        '''
         try:
-            self.pre_insert(datasource=datasource)
+            self.pre_insert(datasource)
         except Exception as e:
             raise InsertionError(f'Cannot insert new document ({self}).'
                                  f'The schema raised the following exception: {e}')
 
-    def pre_insert(self, datasource):
-        pass
-    
+
     def __pre_update(self, datasource, new):
+        '''This method is called if new.save(datasource)
+        was called and a query on datasource
+        with new.index_labels returned this document.
+
+        raises an UpdateError if user defined checks fail.
+        '''
+        if not self.same_index(new):
+            raise UpdateError(f'Cannot update document ({self}) with {new}. '
+                              f'The index labels do not match.')
         try:
-            self.pre_update(datasource=datasource, new=new)
+            self.pre_update(datasource, new=new)
         except Exception as e:
             raise UpdateError(f"Cannot update existing instance ({self}) "
                               f"with new instance ({new}), the schema "
                               f"raised the following exception: {e}")
 
+    def pre_insert(self, datasource):
+        '''User defined checks to perform
+        prior to document insertion.
+        Should raise an exception if insertion
+        is disallowed.
+        '''
+        pass
+    
     def pre_update(self, datasource, new):
+        '''User defined checks to perform
+        prior to document update.
+        Should raise an exception if update
+        is disallowed.
+        '''
         pass
 
     def same_values(self, other):
@@ -265,9 +333,32 @@ class BaseSchema(BaseModel):
             return False
         return self.column_values == other.column_values
 
+    def same_index(self, other):
+        if other is None:
+            return False
+        if not isinstance(other, BaseSchema):
+            return False
+        return self.index_labels == other.index_labels
+
     def pandas_dict(self):
         data = self.dict()
         for name, label in self.index_labels.items():
             index = self.index_for(name)
             data[name] = index.to_pandas(label)
         return data
+
+    @classmethod
+    def empty_dframe(cls):
+        columns = list(cls.__fields__)
+        indexes = list(cls.get_index_fields())
+        if len(indexes) == 1:
+            indexes = indexes[0]
+        return pd.DataFrame().reindex(columns=columns).set_index(indexes)
+
+
+    def to_pandas(self):
+        index_fields = list(self.get_index_fields())
+        if len(index_fields) == 1:
+            index_fields = index_fields[0]
+        df = pd.DataFrame([self.pandas_dict()])
+        return df.set_index(index_fields)

@@ -1,3 +1,5 @@
+from loguru import logger
+
 from ..utils import singledispatch
 from .base import DatasourceInterface
 from .mongo import MongoInterface

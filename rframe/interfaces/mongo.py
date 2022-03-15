@@ -1,6 +1,7 @@
 from itertools import product
 from typing import List, Union
 from warnings import warn
+from loguru import logger
 
 import pandas as pd
 from pydantic import BaseModel
@@ -26,10 +27,16 @@ try:
             self.collection = collection
             self.aggregations = aggregations
 
-        def execute(self):
+        def execute(self, limit=None, skip=None):
+            logger.debug('Executing multi mongo aggregation.')
             results = []
             for agg in self.aggregations:
-                results.extend(agg.apply(self.collection))
+                results.extend(agg.execute(self.collection, limit=limit, skip=skip))
+            skip = 0 if skip is None else skip
+
+            if limit is not None:
+                return results[skip:limit+skip]
+
             return results
 
         def logical_or(self, other: "MultiMongoAggregation"):
@@ -61,14 +68,19 @@ try:
 
         def execute(self, limit: int = None, skip: int = None):
             pipeline = list(self.pipeline)
-            if skip is not None:
-                raw_skip = int(skip * self.index.DOCS_PER_LABEL)
+
+            if isinstance(skip, int):
+                raw_skip = skip * self.index.DOCS_PER_LABEL
                 pipeline.append({"$skip": raw_skip})
-            if limit is not None:
-                raw_limit = int(limit * self.index.DOCS_PER_LABEL)
+
+            if isinstance(limit, int):
+                raw_limit = limit * self.index.DOCS_PER_LABEL
+                raw_limit = int(raw_limit)
                 pipeline.append({"$limit": raw_limit})
             
             pipeline.append({"$project": { "_id": 0}})
+
+            logger.debug(f'Executing mongo aggregation: {pipeline}.')
 
             docs = list(self.collection.aggregate(pipeline, allowDiskUse=True))
 
@@ -131,7 +143,7 @@ try:
             pipeline = list(self.pipeline)
             pipeline.append({"$count": "count"})
             result = next(self.collection.aggregate(pipeline, allowDiskUse=True))
-            return result.get('count', None) / self.index.DOCS_PER_LABEL
+            return result.get('count', 0)
 
         def logical_and(self, other):
             index = MultiIndex(self.index, other.index)
@@ -202,6 +214,8 @@ try:
         @compile_query.register(tuple)
         @compile_query.register(MultiIndex)
         def multi_query(self, index, labels):
+            logger.debug('Building mongo multi-query for index: '
+                        f'{index} with labels: {labels}')
             if not isinstance(index, MultiIndex):
                 index = MultiIndex(*index)
             return self.simple_multi_query(index, labels)
@@ -209,6 +223,8 @@ try:
         @compile_query.register(Index)
         @compile_query.register(str)
         def get_simple_query(self, index, label, others=None):
+            logger.debug('Building mongo simple-query for index: '
+                        f'{index} with label: {label}')
             name = index.name if isinstance(index, Index) else index
 
             if isinstance(label, slice):
@@ -252,14 +268,17 @@ try:
             """For interpolation we match the values directly before and after
             the value of interest. For each value we take the closest document on either side.
             """
+            logger.debug('Building mongo interpolating-query for index: '
+                        f'{index} with label: {label}')
             if label is None:
                 labels = {index.name: label}
                 return MongoAggregation(index, labels, self.source, [])
+            limit = 1 if others is None else others
 
             if not isinstance(label, list):
                 pipelines = dict(
-                    before=mongo_before_query(index.name, label, limit=others),
-                    after=mongo_after_query(index.name, label, limit=others),
+                    before=mongo_before_query(index.name, label, limit=limit),
+                    after=mongo_after_query(index.name, label, limit=limit),
                 )
                 pipeline = merge_pipelines(pipelines)
                 labels = {index.name: label}
@@ -276,13 +295,19 @@ try:
             return MongoAggregation(index, labels, self.source, pipeline)
 
         @compile_query.register(IntervalIndex)
-        def build_interval_query(self, index, intervals, others=None):
+        def build_interval_query(self, index, label, others=None):
             """Query overlaping documents with given interval, supports multiple
             intervals as well as zero length intervals (left==right)
             multiple overlap queries are joined with the $or operator
             """
-            if not isinstance(intervals, list):
-                intervals = [intervals]
+
+            logger.debug('Building mongo interval-query for index: '
+                        f'{index} with label: {label}')
+
+            if isinstance(label, list):
+                intervals = label
+            else:
+                intervals = [label]
 
             queries = []
             for interval in intervals:
@@ -336,6 +361,8 @@ try:
                 return doc
             except Exception as e:
                 raise InsertionError(f"Mongodb has rejected this insertion:\n {e} ")
+        
+        update = insert
 
         def ensure_index(self, names, order=pymongo.ASCENDING):
             self.source.ensure_index([(name, order) for name in names])
@@ -365,8 +392,8 @@ def mongo_overlap_query(index, interval):
     # Set the appropriate operators depending on if the interval
     # is closed on one side or both
     closed = getattr(index, "closed", "right")
-    gt_op = "$gte" if closed in ["right", "both"] else "$gt"
-    lt_op = "$lte" if closed in ["left", "both"] else "$lt"
+    gt_op = "$gte" if closed == "both" else "$gt"
+    lt_op = "$lte" if closed == "both" else "$lt"
 
     # handle different kinds of interval definitions
     if isinstance(interval, tuple):

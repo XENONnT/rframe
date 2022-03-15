@@ -2,10 +2,9 @@
 
 language: python
 python:
+  - 3.10
+  - 3.9
   - 3.8
-  - 3.7
-  - 3.6
-  - 3.5
 
 # Command to install dependencies
 install: pip install -U tox-travis
@@ -23,6 +22,7 @@ deploy:
   skip_cleanup: true
   distributions: sdist bdist_wheel
   user: jmosbacher
+  username: "__token__"
   password:
     secure: PLEASE_REPLACE_ME
   on:

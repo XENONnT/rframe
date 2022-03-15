@@ -27,6 +27,7 @@ toolz = "^0.11.2"
 scipy = "^1.8.0"
 requests = "^2.27.1"
 makefun = "^1.13.1"
+loguru = "^0.6.0"
 
 [tool.poetry.dev-dependencies]
 bumpversion = "*"
@@ -45,6 +46,7 @@ hypothesis = "^6.37.2"
 pymongo = "<4.0"
 black = "^22.1.0"
 fastapi = "^0.75.0"
+coveralls = "^3.3.1"
 
 [tool.poetry.scripts]
 rframe = 'rframe.cli:main'

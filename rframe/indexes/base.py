@@ -4,7 +4,7 @@ from typing import Any
 
 import pandas as pd
 import pytz
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from pydantic.fields import FieldInfo
 
 from rframe.utils import singledispatchmethod
@@ -35,16 +35,20 @@ class BaseIndex(FieldInfo):
     def _validate_label(self, label):
         if label is None:
             return label
+            
         if isinstance(label, pd.Timestamp):
             label = label.to_pydatetime()
         label, error = self.field.validate(label, {}, loc="LabelType")
         if error:
-            raise error
+            raise ValidationError([error], self.schema)
         if isinstance(label, BaseModel):
             label = label.dict()
         return label
 
     def validate_label(self, label):
+        if isinstance(label, dict) and self.name in label:
+            label = label[self.name]
+
         if isinstance(label, slice):
             start = self._validate_label(label.start)
             stop = self._validate_label(label.stop)

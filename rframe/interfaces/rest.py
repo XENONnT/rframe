@@ -1,4 +1,5 @@
 from typing import List, Union
+from loguru import logger
 
 from .base import BaseDataQuery, DatasourceInterface
 from ..indexes import Index, InterpolatingIndex, IntervalIndex, MultiIndex
@@ -15,6 +16,7 @@ class RestQuery(BaseDataQuery):
         self.params = params if params is not None else {}
 
     def execute(self, limit: int = None, skip: int = None):
+        logger.debug(f'Executing rest api query with skip={skip} and limit={limit}')
         return self.client.query(limit=limit, skip=skip, **self.params)
 
     def unique(self, fields: Union[str, List[str]]):
@@ -45,6 +47,9 @@ def serializable_interval(interval):
     else:
         left = right = interval
     
+    if left is None and right is None:
+        return None
+
     interval = {'left': left, 'right': right}
 
     return interval
@@ -94,4 +99,7 @@ class RestInterface(DatasourceInterface):
         return RestQuery(self.source, params)
 
     def insert(self, doc):
+        logger.debug(f'REST api backend inserting document {doc}')
         return self.source.insert(doc)
+
+    update = insert
