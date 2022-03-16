@@ -1,4 +1,5 @@
 import re
+import json
 import jsonschema
 from typing import Mapping
 from pydantic import BaseModel
@@ -24,7 +25,7 @@ def get_all_subclasses(type_):
 
 def jsonable(obj):
     if isinstance(obj, BaseModel):
-        return obj.dict()
+        return json.loads(obj.json())
 
     if isinstance(obj, Mapping):
         return {k: jsonable(v) for k, v in obj.items()}

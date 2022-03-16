@@ -1,6 +1,6 @@
 from __future__ import annotations
 import inspect
-from numpy import isin
+import json
 
 import pandas as pd
 from pydantic import BaseModel
@@ -19,6 +19,8 @@ class UpdateError(Exception):
 
 
 class BaseSchema(BaseModel):
+    class Config:
+        validate_assignment = True
 
     @classmethod
     def default_datasource(cls):
@@ -355,10 +357,33 @@ class BaseSchema(BaseModel):
             indexes = indexes[0]
         return pd.DataFrame().reindex(columns=columns).set_index(indexes)
 
-
     def to_pandas(self):
         index_fields = list(self.get_index_fields())
         if len(index_fields) == 1:
             index_fields = index_fields[0]
         df = pd.DataFrame([self.pandas_dict()])
         return df.set_index(index_fields)
+
+    def jsonable(self):
+        return json.loads(self.json())
+
+    @property
+    def raw_index_labels(self):
+        return tuple(getattr(self, k) for k in self.get_index_fields())
+
+    def __lt__(self, other: 'BaseSchema'):
+        return self.raw_index_labels < other.raw_index_labels
+
+    def __le__(self, other: 'BaseSchema'):
+        if not isinstance(other, BaseSchema):
+            raise TypeError('')
+        return self.raw_index_labels <= other.raw_index_labels
+
+    def __eq__(self, other: 'BaseSchema'):
+        return self.same_index(other) and self.same_values(other)
+
+    def __gt__(self, other: 'BaseSchema'):
+        return self.raw_index_labels > other.raw_index_labels
+
+    def __ge__(self, other: 'BaseSchema'):
+        return self.raw_index_labels >= other.raw_index_labels

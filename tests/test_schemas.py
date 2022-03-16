@@ -19,7 +19,7 @@ from rframe.utils import get_all_subclasses
 
 logger.disable("rframe")
 
-int_indices = st.integers(min_value=0, max_value=1e8)
+int_indices = st.integers(min_value=1, max_value=1e8)
 float_indices = st.floats(min_value=0, max_value=1e4, allow_nan=False)
 float_values = st.floats(min_value=-1e8, max_value=1e8, allow_nan=False)
 
@@ -241,7 +241,7 @@ class IntervalTestSchema(BaseTestSchema):
 def touching_intervals(draw, strategy, resolution):
     docs = draw(strategy)
     last = docs[-1].index_field.left + 100_000 * resolution
-    
+    last = min(last, docs[-1].index_field._max)
     borders = sorted([doc.index_field.left for doc in docs]) + [last]
 
     for doc,left,right in zip(docs, borders[:-1], borders[1:]):
