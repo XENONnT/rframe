@@ -4,7 +4,7 @@ __author__ = """Yossi Mosbacher"""
 __email__ = "joe.mosbacher@gmail.com"
 __version__ = "0.1.10"
 
-from . import schema, indexes, utils, types
+from . import schema, indexes, utils
 
 from .indexes import Index, InterpolatingIndex, IntervalIndex
 from .indexes.types import Interval, IntegerInterval, TimeInterval
