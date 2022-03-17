@@ -51,6 +51,11 @@ coveralls = "^3.3.1"
 [tool.poetry.scripts]
 rframe = 'rframe.cli:main'
 
+[tool.poetry.plugins] 
+[tool.poetry.plugins."hypothesis"]
+"_" = "rframe._hypothesis_plugin"
+
+
 [build-system]
 requires = ["poetry>=0.12", "setuptools"]
 build-backend = "poetry.masonry.api"

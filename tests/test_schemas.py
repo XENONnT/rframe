@@ -24,7 +24,8 @@ float_indices = st.floats(min_value=0, max_value=1e4, allow_nan=False)
 float_values = st.floats(min_value=-1e8, max_value=1e8, allow_nan=False)
 
 def round_datetime(dt):
-    return dt.replace(microsecond=0, second=0)
+    #
+    return dt.replace(microsecond=int(dt.microsecond/1000)*1000, second=0)
 
 datetimes = st.datetimes(min_value=datetime.datetime(2000, 1, 1, 0, 0),
                          max_value=datetime.datetime(2232, 1, 1, 0, 0),
@@ -57,8 +58,8 @@ class BaseTestSchema(BaseSchema):
     @classmethod
     def list_strategy(cls, **overrides):
         defaults = dict(
-            unique_by=lambda x: tuple(x.index_labels.values()),
-            min_size=1, max_size=1000,
+            unique_by=lambda x: x.index_labels_tuple,
+            min_size=1, max_size=100,
         )
         kwargs = dict(defaults, **overrides)
         return st.lists(cls.item_strategy(), **kwargs)
@@ -138,8 +139,8 @@ class SimpleSchema(BaseTestSchema):
     @classmethod
     def field_strategies(cls) -> Dict[str,st.SearchStrategy]:
         fields = dict(
-            index_field = int_indices,
-            value = float_values,
+            # index_field = int_indices,
+            # value = float_values,
         )
         return fields
 
@@ -154,9 +155,9 @@ class SimpleMultiIndexSchema(BaseTestSchema):
     @classmethod
     def field_strategies(cls) -> Dict[str,st.SearchStrategy]:
         fields = dict(
-            index1 = int_indices,
-            value1 = float_values,
-            value2 = float_values,
+            # index1 = int_indices,
+            # value1 = float_values,
+            # value2 = float_values,
         )
         return fields
 
@@ -171,13 +172,14 @@ class AdvancedMultiIndexSchema(BaseTestSchema):
 
 class InterpolatingSchema(BaseTestSchema):
     index_field: float = InterpolatingIndex()
+
     value: float
 
     @classmethod
     def list_strategy(cls, **overrides):
-        defaults = {'min_size': 3 }
+        defaults = {'min_size': 3 , 'max_size': 5}
         kwargs = dict(defaults, **overrides)
-        return super().list_strategy(**kwargs).map(lambda docs: sorted(docs, key=lambda x: x.index_field) )
+        return super().list_strategy(**kwargs).map(sorted)
 
     @classmethod
     def field_strategies(cls) -> Dict[str,st.SearchStrategy]:
@@ -223,6 +225,8 @@ class IntervalTestSchema(BaseTestSchema):
         for doc in docs:
             # add half difference so it works for datatimes as well as ints
             half_diff = (doc.index_field.right - doc.index_field.left) / 2
+            if half_diff < doc.index_field._resolution:
+                continue
             index_val = doc.index_field.left + half_diff
             labels = doc.index_labels
             labels['index_field'] = index_val
@@ -240,15 +244,17 @@ class IntervalTestSchema(BaseTestSchema):
 @st.composite
 def touching_intervals(draw, strategy, resolution):
     docs = draw(strategy)
-    last = docs[-1].index_field.left + 100_000 * resolution
+    last = docs[-1].index_field.left + 10_000 * resolution
     last = min(last, docs[-1].index_field._max)
+
     borders = sorted([doc.index_field.left for doc in docs]) + [last]
 
     for doc,left,right in zip(docs, borders[:-1], borders[1:]):
         assume(right - left > resolution)
 
-        doc.index_field.left = left
-        doc.index_field.right = right
+        # set the new boundaries
+        doc.index_field = left, right
+
     return docs
 
 

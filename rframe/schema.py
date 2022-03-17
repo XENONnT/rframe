@@ -275,7 +275,7 @@ class BaseSchema(BaseModel):
             existing[0].__pre_update(datasource, self)
             return interface.update(self)
         else:
-            raise InsertionError('Multiple documents match document '
+            raise UpdateError('Multiple documents match document '
                                  f'index ({self.index_labels}). '
                                  'Multiple update is not supported.')
             
@@ -302,9 +302,9 @@ class BaseSchema(BaseModel):
 
         raises an UpdateError if user defined checks fail.
         '''
-        if not self.same_index(new):
-            raise UpdateError(f'Cannot update document ({self}) with {new}. '
-                              f'The index labels do not match.')
+        # if not self.same_index(new):
+        #     raise UpdateError(f'Cannot update document ({self}) with {new}. '
+        #                       f'The index labels do not match.')
         try:
             self.pre_update(datasource, new=new)
         except Exception as e:
