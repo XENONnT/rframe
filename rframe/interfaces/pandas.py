@@ -151,7 +151,7 @@ class PandasInterpolationQuery(PandasBaseQuery):
         idx_column = df[self.column]
         before = df[idx_column <= self.label]
         if len(before):
-            # if ther are values after `value`, we find the closest one
+            # if there are values after `value`, we find the closest one
             before = before.sort_values(self.column, ascending=False).head(limit)
             rows.append(before)
 
