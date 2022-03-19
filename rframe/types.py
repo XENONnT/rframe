@@ -1,5 +1,5 @@
 import datetime
-from typing import ClassVar, Mapping, TypeVar
+from typing import ClassVar, Literal, Mapping, TypeVar
 
 import pydantic
 from pydantic import BaseModel, root_validator, ValidationError
@@ -30,6 +30,7 @@ class Interval(BaseModel):
 
     left: LabelType
     right: LabelType = None
+    closed: Literal['left','right','both'] = 'right'
 
     @classmethod
     def __get_validators__(cls):

@@ -12,7 +12,7 @@ It is registered as a hypothesis plugin and thus is imported by the hypothesis p
 This approach is inspired by the pydantic hypothesis plugin.
 
 """
-from rframe.indexes.types import (MAX_INTEGER, MIN_DATETIME, MAX_TIMEDELTA,
+from .types import (MAX_INTEGER, MIN_DATETIME, MAX_TIMEDELTA,
                         MAX_DATETIME, MIN_INTEGER, MIN_INTEGER_DELTA,
                         MIN_TIMEDELTA, TimeInterval, IntegerInterval)
 import datetime

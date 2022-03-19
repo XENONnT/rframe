@@ -4,7 +4,7 @@ import pandas as pd
 from pydantic import ValidationError
 
 from .base import BaseIndex
-from .types import Interval, TimeInterval
+from ..types import Interval, TimeInterval
 
 
 class IntervalIndex(BaseIndex):

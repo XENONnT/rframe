@@ -1,9 +1,18 @@
 import re
 import json
+import math
 import jsonschema
-from typing import Mapping
+
+from numbers import Number
+from functools import partial
 from pydantic import BaseModel
+from multipledispatch import dispatch
 from pydantic.json import ENCODERS_BY_TYPE
+from collections.abc import Iterable, Mapping
+
+
+dispatch_namespace = {}
+dispatch = partial(dispatch, namespace=dispatch_namespace)
 
 
 def camel_to_snake(name):
@@ -152,3 +161,37 @@ class singledispatchmethod:
     @property
     def __isabstractmethod__(self):
         return getattr(self.func, "__isabstractmethod__", False)
+
+
+@dispatch(object, object)
+def are_equal(x, y):
+    if x is None and y is None:
+        return True
+    return x == y
+
+@dispatch(str, str)
+def are_equal(x, y):
+    return x == y
+
+@dispatch(Number, Number)
+def are_equal(x, y):
+    if math.isnan(x) and math.isnan(y):
+        return True
+    return math.isclose(x,y)
+
+
+@dispatch(Iterable, Iterable)
+def are_equal(x, y):
+    if len(x) != len(y):
+        return False
+    return all([are_equal(xi, yi) for xi, yi in zip(x, y)])
+
+
+@dispatch(Mapping, Mapping)
+def are_equal(x, y):
+    if len(x) != len(y):
+        return False
+    for k, v in x.items():
+        if k not in y or not are_equal(v, y[k]):
+            return False
+    return True

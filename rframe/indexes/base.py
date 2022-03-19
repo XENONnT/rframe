@@ -69,31 +69,6 @@ class BaseIndex(FieldInfo):
 
         return self._validate_label(label)
 
-    def coerce(self, label):
-        if isinstance(label, self.label_type):
-            return label
-
-        label = self._coerce(self.label_type, label)
-
-        return label
-
-    @singledispatchmethod
-    def _coerce(self, type_, value):
-        return type_(value)
-
-    @_coerce.register(datetime)
-    def _coerce_datetime(self, type_, value):
-        if isinstance(value, datetime):
-            if value.tzinfo is not None and value.tzinfo.utcoffset(value) is not None:
-                value = value.astimezone(pytz.utc)
-            else:
-                value = value.replace(tzinfo=pytz.utc)
-            return value
-        unit = self.unit if isinstance(value, numbers.Number) else None
-        utc = getattr(self, "utc", True)
-        value = pd.to_datetime(value, utc=utc, unit=unit).to_pydatetime()
-        return self._coerce_datetime(type_, value)
-
     def to_pandas(self, label):
         return label
 

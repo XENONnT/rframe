@@ -29,6 +29,7 @@ requests = "^2.27.1"
 makefun = "^1.13.1"
 loguru = "^0.6.0"
 jsonschema = "^4.4.0"
+multipledispatch = "^0.6.0"
 
 [tool.poetry.dev-dependencies]
 bumpversion = "*"
@@ -48,6 +49,7 @@ pymongo = "<4.0"
 black = "^22.1.0"
 fastapi = "^0.75.0"
 coveralls = "^3.3.1"
+tinydb = "^4.7.0"
 
 [tool.poetry.scripts]
 rframe = 'rframe.cli:main'

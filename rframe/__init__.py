@@ -7,7 +7,7 @@ __version__ = "0.1.11"
 from . import schema, indexes, utils
 
 from .indexes import Index, InterpolatingIndex, IntervalIndex
-from .indexes.types import Interval, IntegerInterval, TimeInterval
+from .types import Interval, IntegerInterval, TimeInterval
 from .rframe import RemoteFrame
 from .schema import BaseSchema
 from .rest_client import BaseRestClient, RestClient

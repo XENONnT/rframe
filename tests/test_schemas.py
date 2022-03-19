@@ -15,7 +15,7 @@ from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
 from rframe.schema import InsertionError, UpdateError
-from rframe.utils import get_all_subclasses
+from rframe.utils import are_equal, get_all_subclasses
 
 logger.disable("rframe")
 
@@ -95,12 +95,12 @@ class BaseTestSchema(BaseSchema):
         # test RemoteFrame .at scalar lookup
         for doc in docs:
             for field, value in doc.column_values.items():
-                tester.assertEqual(value, rf.at[doc.index_labels_tuple, field])
+                assert are_equal(value, rf.at[doc.index_labels_tuple, field])
 
         # test RemoteSeries .at scalar lookup
         for doc in docs:
             for field, value in doc.column_values.items():
-                tester.assertEqual(value, rf[field].at[doc.index_labels_tuple])
+                assert are_equal(value, rf[field].at[doc.index_labels_tuple])
         
         df = pd.concat([doc.to_pandas() for doc in docs])
 
@@ -111,20 +111,20 @@ class BaseTestSchema(BaseSchema):
 
         for field in rf.columns:
             max_val = df[field].max()
-            tester.assertEqual(rf[field].max(), max_val)
-            tester.assertEqual(rf.max(field), max_val)
+            assert are_equal(rf[field].max(), max_val)
+            assert are_equal(rf.max(field), max_val)
 
             min_val = df[field].min()
-            tester.assertEqual(rf[field].min(),min_val)
-            tester.assertEqual(rf.min(field),min_val)
+            assert are_equal(rf[field].min(),min_val)
+            assert are_equal(rf.min(field),min_val)
 
         n = max(1, min(len(df)//2, 10) )
         tester.assertEqual(n, len(rf.head(n)))
 
         for field in rf.columns:
             unique_vals = sorted(df[field].unique())
-            tester.assertEqual(sorted(rf[field].unique()), unique_vals)
-            tester.assertEqual(sorted(rf.unique(field)), unique_vals)
+            assert are_equal(sorted(rf[field].unique()), unique_vals)
+            assert are_equal(sorted(rf.unique(field)), unique_vals)
 
     @classmethod
     def test(cls, tester: unittest.TestCase, datasource, docs: List['BaseTestSchema']):
@@ -139,8 +139,8 @@ class SimpleSchema(BaseTestSchema):
     @classmethod
     def field_strategies(cls) -> Dict[str,st.SearchStrategy]:
         fields = dict(
-            # index_field = int_indices,
-            # value = float_values,
+            index_field = int_indices,
+            value = float_values,
         )
         return fields
 
@@ -155,9 +155,9 @@ class SimpleMultiIndexSchema(BaseTestSchema):
     @classmethod
     def field_strategies(cls) -> Dict[str,st.SearchStrategy]:
         fields = dict(
-            # index1 = int_indices,
-            # value1 = float_values,
-            # value2 = float_values,
+            index1 = int_indices,
+            value1 = float_values,
+            value2 = float_values,
         )
         return fields
 

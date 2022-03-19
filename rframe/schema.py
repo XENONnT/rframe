@@ -6,6 +6,8 @@ from pydantic import BaseModel
 from pydantic.fields import FieldInfo, ModelField
 from typing import Dict, List, Mapping, Optional, Union
 
+from rframe.utils import are_equal
+
 from .indexes import BaseIndex, Index, MultiIndex
 from .interfaces import get_interface
 
@@ -268,17 +270,29 @@ class BaseSchema(BaseModel):
         interface = get_interface(datasource, **kwargs)
         existing = self.find(datasource, **self.index_labels)
         if not existing:
-            self.__pre_insert(datasource)
-            return interface.insert(self)
+            # No documents found, insert new
+            try:
+                self.__pre_insert(datasource)
+                interface.insert(self)
+            except Exception as e:
+                self.__post_insert(datasource, exception=e)
+                raise  e
+            self.__post_insert(datasource)
+
         elif len(existing) == 1:
-            existing[0].__pre_update(datasource, self)
-            return interface.update(self)
+            # Single document found, update
+            try:
+                existing[0].__pre_update(datasource, self)
+                interface.update(self)
+            except Exception as e:
+                existing[0].__post_update(datasource, self, exception=e)
+                raise e
+            existing[0].__post_update(datasource, self)
         else:
+            # Multiple documents found, raise exception
             raise UpdateError('Multiple documents match document '
                                  f'index ({self.index_labels}). '
                                  'Multiple update is not supported.')
-            
-        
 
     def __pre_insert(self, datasource):
         '''This method is called  pre insertion 
@@ -293,6 +307,12 @@ class BaseSchema(BaseModel):
             raise InsertionError(f'Cannot insert new document ({self}).'
                                  f'The schema raised the following exception: {e}')
 
+    def __post_insert(self, datasource, exception=None):
+        '''This method is called post insertion 
+        runs the schemas post insertion hook and returns
+        '''
+        self.post_insert(datasource, exception)
+       
 
     def __pre_update(self, datasource, new):
         '''This method is called if new.save(datasource)
@@ -311,11 +331,24 @@ class BaseSchema(BaseModel):
                               f"with new instance ({new}), the schema "
                               f"raised the following exception: {e}")
 
+    def __post_update(self, datasource, new, exception=None):
+        '''This method is called after updates 
+        runs the schemas post update hook and returns
+        '''
+        self.post_update(datasource, new, exception)
+
     def pre_insert(self, datasource):
-        '''User defined checks to perform
+        '''Pre insert hook for user 
+        defined checks to perform
         prior to document insertion.
         Should raise an exception if insertion
         is disallowed.
+        '''
+        pass
+
+    def post_insert(self, datasource, exception=None):
+        '''User defined hook to perform
+        after document insertion.
         '''
         pass
     
@@ -327,19 +360,25 @@ class BaseSchema(BaseModel):
         '''
         pass
 
+    def post_update(self, datasource, new, exception=None):
+        '''User defined hook to perform
+        after document updates.
+        '''
+        pass
+
     def same_values(self, other):
         if other is None:
             return False
         if not isinstance(other, BaseSchema):
             return False
-        return self.column_values == other.column_values
+        return are_equal(self.column_values, other.column_values)
 
     def same_index(self, other):
         if other is None:
             return False
         if not isinstance(other, BaseSchema):
             return False
-        return self.index_labels == other.index_labels
+        return are_equal(self.index_labels, other.index_labels)
 
     def pandas_dict(self):
         data = self.dict()
@@ -379,7 +418,9 @@ class BaseSchema(BaseModel):
         return self.raw_index_labels <= other.raw_index_labels
 
     def __eq__(self, other: 'BaseSchema'):
-        return self.same_index(other) and self.same_values(other)
+        if not isinstance(other, BaseSchema):
+            False
+        return are_equal(self.dict, other.dict())
 
     def __gt__(self, other: 'BaseSchema'):
         return self.raw_index_labels > other.raw_index_labels

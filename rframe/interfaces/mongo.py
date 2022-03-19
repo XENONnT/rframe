@@ -6,7 +6,7 @@ from loguru import logger
 import pandas as pd
 from pydantic import BaseModel
 
-from rframe.indexes.types import Interval
+from ..types import Interval
 
 from ..indexes import Index, InterpolatingIndex, IntervalIndex, MultiIndex
 from ..utils import singledispatchmethod
@@ -100,7 +100,8 @@ try:
                     }
                     })
                     
-                results[field] = [doc['first'] for doc in self.collection.aggregate(pipeline, allowDiskUse=True)]
+                results[field] = [doc['first'] for doc in 
+                                  self.collection.aggregate(pipeline, allowDiskUse=True)]
             if len(fields) == 1:
                 return results[fields[0]]
             return results
