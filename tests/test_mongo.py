@@ -9,6 +9,7 @@ from hypothesis import strategies as st
 
 import rframe
 from rframe.schema import UpdateError
+from rframe.interfaces import get_interface, MongoInterface
 
 from .test_schemas import *
 
@@ -16,6 +17,7 @@ DB_NAME = "rframe_tests"
 COLLECTION_NAME = "mongo_test"
 
 MONGO_URI = os.environ.get("TEST_MONGO_URI")
+
 
 
 @unittest.skipIf(MONGO_URI is None, "No access to test database")
@@ -74,3 +76,8 @@ class TestMongo(unittest.TestCase):
         self.collection.delete_many({})
         datasource = self.collection
         TimeIntervalSchema.test(self, datasource, docs)
+
+    def test_interface_from_url(self):
+        interface = get_interface('mongodb://localhost', database='test', collection='test')
+        self.assertIsInstance(interface, rframe.interfaces.MongoInterface)
+

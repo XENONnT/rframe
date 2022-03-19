@@ -3,6 +3,8 @@ import unittest
 import pandas as pd
 
 import rframe
+from rframe.interfaces import get_interface
+
 
 from .test_schemas import SimpleSchema
 

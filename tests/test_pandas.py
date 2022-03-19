@@ -1,4 +1,5 @@
 import os
+import tempfile
 import unittest
 from typing import List
 
@@ -8,6 +9,7 @@ from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
 import rframe
+from rframe.interfaces import get_interface, PandasInterface
 
 from .test_schemas import *
 
@@ -47,3 +49,20 @@ class TestPandas(unittest.TestCase):
     def test_time_interval(self, docs: TimeIntervalSchema):
         datasource = docs[0].to_pandas().head(0)
         TimeIntervalSchema.test(self, datasource, docs)
+
+    def test_interface_from_url(self):
+        df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
+
+        with tempfile.NamedTemporaryFile( suffix=".csv") as f:
+            df.to_csv(f, index=False)
+            f.seek(0)
+            url =  f.name
+            interface = get_interface(url)
+            self.assertIsInstance(interface, PandasInterface)
+
+        with tempfile.NamedTemporaryFile( suffix=".pkl") as f:
+            df.to_pickle(f)
+            f.seek(0)
+            url =  f.name
+            interface = get_interface(url)
+            self.assertIsInstance(interface, PandasInterface)

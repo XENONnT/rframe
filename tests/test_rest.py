@@ -14,6 +14,9 @@ from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from rframe.interfaces import get_interface
+
+from rframe.interfaces.rest import RestInterface
 
 
 from .test_schemas import *
@@ -87,3 +90,10 @@ class TestRest(unittest.TestCase):
         self.collections[TimeIntervalSchema].delete_many({})
         datasource = self.datasources[TimeIntervalSchema]
         TimeIntervalSchema.test(self, datasource, docs)
+
+    def test_interface_from_url(self):
+        interface = get_interface('http://someserver.com/somepath')
+        self.assertIsInstance(interface, RestInterface)
+
+        interface = get_interface('https://someserver.com/somepath')
+        self.assertIsInstance(interface, RestInterface)

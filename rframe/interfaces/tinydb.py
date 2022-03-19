@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 
 from pydantic import BaseModel
-from soupsieve import select
 
 from ..types import Interval
 
@@ -59,13 +58,18 @@ try:
                 selections = [selections]
             self.selections = selections
 
-        def execute(self, limit=None, skip=None):
-            logger.debug('Applying tinydb selection')
+        def apply_selection(self, db):
             docs = []
             for selection in self.selections:
                 selected = selection.apply(self.table)
                 docs.extend(selected)
-    
+            return docs
+
+        def execute(self, limit=None, skip=None):
+            logger.debug('Applying tinydb selection')
+            
+            docs = self.apply_selection(self.table)
+
             docs = self.index.reduce(docs, self.labels)
 
             if not docs:
@@ -81,7 +85,7 @@ try:
             if isinstance(fields, str):
                 fields = [fields]
 
-            docs = self.execute()
+            docs = self.apply_selection(self.table)
             results = {}
             for field in fields:
                 values = [doc[field] for doc in docs]
@@ -94,7 +98,7 @@ try:
             if isinstance(fields, str):
                 fields = [fields]
 
-            docs = self.execute()
+            docs = self.apply_selection(self.table)
             results = {}
             for field in fields:
                 values = [doc[field] for doc in docs]
@@ -107,7 +111,7 @@ try:
             if isinstance(fields, str):
                 fields = [fields]
 
-            docs = self.execute()
+            docs = self.apply_selection(self.table)
             results = {}
             for field in fields:
                 values = [doc[field] for doc in docs]
@@ -124,13 +128,17 @@ try:
     @DatasourceInterface.register_interface(TinyDB)
     class TinyDBInterface(DatasourceInterface):
         @classmethod
-        def from_url(cls, path: str,
+        def from_url(cls, url: str,
                     table: str = None,
                     **kwargs):
-            db = TinyDB(path)
-            if table is not None:
-                db = db.table(table)
-            return cls(db)
+            if url.startswith('tinydb://'):
+                path = url[len('tinydb://'):]
+                db = TinyDB(path)
+                if table is not None:
+                    db = db.table(table)
+                return cls(db)
+                
+            raise NotImplementedError
 
         @singledispatchmethod
         def compile_query(self, index, label):

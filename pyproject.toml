@@ -30,6 +30,7 @@ makefun = "^1.13.1"
 loguru = "^0.6.0"
 jsonschema = "^4.4.0"
 multipledispatch = "^0.6.0"
+fsspec = "^2022.2.0"
 
 [tool.poetry.dev-dependencies]
 bumpversion = "*"

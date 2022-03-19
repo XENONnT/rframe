@@ -453,7 +453,7 @@ def mongo_after_query(name, value, limit=1):
     if isinstance(limit, list):
         return mongo_grouped_after_query(name, value, limit)
     return [
-        {"$match": {f"{name}": {"$gte": value}}},
+        {"$match": {f"{name}": {"$gt": value}}},
         {"$sort": {f"{name}": 1}},
         {"$limit": limit},
     ]
@@ -475,7 +475,7 @@ def mongo_grouped_before_query(name, value, groups):
 
 def mongo_grouped_after_query(name, value, groups):
     return [
-        {"$match": {f"{name}": {"$gte": value}}},
+        {"$match": {f"{name}": {"$gt": value}}},
         {"$sort": {f"{name}": 1}},
         {"$group": {"_id": [f"${grp}" for grp in groups], "doc": {"$first": "$$ROOT"}}},
         {
