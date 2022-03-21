@@ -12,12 +12,17 @@ from .indexes import BaseIndex, Index, MultiIndex
 from .interfaces import get_interface
 
 
-class InsertionError(Exception):
+class EditError(Exception):
     pass
 
-class UpdateError(Exception):
+class InsertionError(EditError):
     pass
 
+class UpdateError(EditError):
+    pass
+
+class DeletionError(EditError):
+    pass
 
 class BaseSchema(BaseModel):
     class Config:
@@ -294,6 +299,17 @@ class BaseSchema(BaseModel):
                                  f'index ({self.index_labels}). '
                                  'Multiple update is not supported.')
 
+    def delete(self, datasource=None, **kwargs):
+        if datasource is None:
+            datasource = self.default_datasource()
+        interface = get_interface(datasource, **kwargs)
+        try:
+            self.__pre_delete(datasource)
+            interface.delete(self)
+        except Exception as e:
+            self.__post_delete(datasource, exception=e)
+            raise e
+
     def __pre_insert(self, datasource):
         '''This method is called  pre insertion 
         if self.save(datasource) was called and a query on datasource
@@ -337,6 +353,25 @@ class BaseSchema(BaseModel):
         '''
         self.post_update(datasource, new, exception)
 
+    def __pre_delete(self, datasource):
+        '''This method is called pre deletion 
+        if self.delete(datasource) was called and a query on datasource
+        with self.index_labels returned this document.
+
+        raises an DeletionError if user defined checks fail.
+        '''
+        try:
+            self.pre_delete(datasource)
+        except Exception as e:
+            raise DeletionError(f'Cannot delete document ({self}).'
+                                 f'The schema raised the following exception: {e}')
+
+    def __post_delete(self, datasource, exception=None):
+        '''This method is called post deletion 
+        runs the schemas post deletion hook and returns
+        '''
+        self.post_delete(datasource, exception)
+
     def pre_insert(self, datasource):
         '''Pre insert hook for user 
         defined checks to perform
@@ -365,6 +400,26 @@ class BaseSchema(BaseModel):
         after document updates.
         '''
         pass
+    
+    def pre_delete(self, datasource):
+        '''User defined checks to perform
+        prior to document deletion.
+        Should raise an exception if deletion
+        is disallowed.
+        '''
+        pass
+
+    def post_delete(self, datasource, exception=None):
+        '''User defined hook to perform
+        after document deletion.
+        '''
+        pass
+
+    def delete(self, datasource=None):
+        if datasource is None:
+            datasource = self.default_datasource()
+        interface = get_interface(datasource)
+        return interface.delete(self)
 
     def same_values(self, other):
         if other is None:

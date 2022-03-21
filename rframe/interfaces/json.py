@@ -252,12 +252,18 @@ class JsonInterface(DatasourceInterface):
 
         return JsonMultiQuery(index, self.source, queries)
 
+    def _find(self, doc):
+        for i, d in enumerate(self.source):
+            if doc.same_index(doc.__class__(**d)):
+                return i
+        else:
+            raise KeyError(doc.index_labels)
+
     def insert(self, doc):
         doc = doc.jsonable()
         self.source.append(doc)
 
     def update(self, doc):
-        
         for i, d in enumerate(self.source):
             if doc.same_index(doc.__class__(**d)):
                 self.source[i] = doc.jsonable()
@@ -266,3 +272,7 @@ class JsonInterface(DatasourceInterface):
             from rframe.schema import UpdateError
 
             raise UpdateError(f"No document with index {doc.index} found.")
+
+    def delete(self, doc):
+        del self.source[self._find(doc)]
+

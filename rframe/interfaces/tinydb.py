@@ -112,7 +112,7 @@ try:
             results = {}
             for field in fields:
                 values = [doc[field] for doc in docs]
-                results[field] = np.unique(values)
+                results[field] = list(np.unique(values))
             if len(fields) == 1:
                 return results[fields[0]]
             return results
@@ -296,12 +296,22 @@ try:
 
 
         def insert(self, doc):
-            return self.source.insert(doc.jsonable())
+            cond = Query().noop()
+            for k,v in doc.index_labels.items():
+                cond = cond & (where(k) == jsonable(v))
+            self.source.remove(cond)
+            return self.source.upsert(doc.jsonable(), cond)
 
         def insert_many(self, docs: list) -> list:
             return self.source.insert_multiple([doc.jsonable() for doc in docs])
 
         update = insert
+
+        def delete(self, doc):
+            cond = Query().noop()
+            for k,v in doc.index_labels.items():
+                cond = cond & (where(k) == jsonable(v))
+            return self.source.remove(cond)
 
 except ImportError:
 

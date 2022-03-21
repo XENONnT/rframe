@@ -8,6 +8,8 @@ from typing import List
 
 import rframe
 import pymongo
+import tempfile
+
 import pandas as pd
 
 from hypothesis import assume, given, settings
@@ -17,36 +19,31 @@ from fastapi.testclient import TestClient
 from rframe.interfaces import get_interface
 
 from rframe.interfaces.rest import RestInterface
-
+from tinydb import TinyDB
+from tinydb.storages import MemoryStorage
 
 from .test_schemas import *
 
-def mongo_uri_not_set():
-    return "TEST_MONGO_URI" not in os.environ
 
-
-@unittest.skipIf(mongo_uri_not_set(), "No access to test database")
 class TestRest(unittest.TestCase):
     """
     Test the Rest interface
 
     """
-
     def setUp(self):
-        uri = os.environ.get("TEST_MONGO_URI")
-        db_name = "rframe_tests"
-        mongo_client = pymongo.MongoClient(uri)
-        db = mongo_client[db_name]
+        db = TinyDB(storage=MemoryStorage)
 
         app = FastAPI()
+        self.tables = {}
         self.datasources = {}
-        self.collections = {}
         for name, schema in TEST_SCHEMAS.items():
-            collection = db[name]
-            self.collections[schema] = collection
+
+            table = db.table(name)
+
+            self.tables[schema] = table
             router = rframe.SchemaRouter(
                     schema,
-                    collection,
+                    table,
                     prefix=name,
                     )
             app.include_router(router)
@@ -59,35 +56,35 @@ class TestRest(unittest.TestCase):
     @given(SimpleSchema.list_strategy())
     @settings(deadline=None)
     def test_simple_schema(self, docs: List[SimpleSchema]):
-        self.collections[SimpleSchema].delete_many({})
+        self.tables[SimpleSchema].truncate()
         datasource = self.datasources[SimpleSchema]
         SimpleSchema.test(self, datasource, docs)
        
     @given(SimpleMultiIndexSchema.list_strategy())
     @settings(deadline=None)
     def test_simple_multi_index(self, docs: List[SimpleMultiIndexSchema]):
-        self.collections[SimpleMultiIndexSchema].delete_many({})
+        self.tables[SimpleMultiIndexSchema].truncate()
         datasource = self.datasources[SimpleMultiIndexSchema]
         SimpleMultiIndexSchema.test(self, datasource, docs)
 
     @given(InterpolatingSchema.list_strategy())
     @settings(deadline=None)
     def test_interpolated(self, docs: InterpolatingSchema):
-        self.collections[InterpolatingSchema].delete_many({})
+        self.tables[InterpolatingSchema].truncate()
         datasource = self.datasources[InterpolatingSchema]
         InterpolatingSchema.test(self, datasource, docs)
 
     @given(IntegerIntervalSchema.list_strategy())
     @settings(deadline=None)
     def test_integer_interval(self, docs: IntegerIntervalSchema):
-        self.collections[IntegerIntervalSchema].delete_many({})
+        self.tables[IntegerIntervalSchema].truncate()
         datasource = self.datasources[IntegerIntervalSchema]
         IntegerIntervalSchema.test(self, datasource, docs)
 
     @given(TimeIntervalSchema.list_strategy())
     @settings(deadline=None)
     def test_time_interval(self, docs: TimeIntervalSchema):
-        self.collections[TimeIntervalSchema].delete_many({})
+        self.tables[TimeIntervalSchema].truncate()
         datasource = self.datasources[TimeIntervalSchema]
         TimeIntervalSchema.test(self, datasource, docs)
 

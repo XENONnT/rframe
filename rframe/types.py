@@ -30,7 +30,7 @@ class Interval(BaseModel):
 
     left: LabelType
     right: LabelType = None
-    closed: Literal['left','right','both'] = 'right'
+    # closed: Literal['left','right','both'] = 'right'
 
     @classmethod
     def __get_validators__(cls):

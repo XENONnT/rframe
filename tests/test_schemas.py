@@ -59,7 +59,7 @@ class BaseTestSchema(BaseSchema):
     def list_strategy(cls, **overrides):
         defaults = dict(
             unique_by=lambda x: x.index_labels_tuple,
-            min_size=1, max_size=100,
+            min_size=1, max_size=30,
         )
         kwargs = dict(defaults, **overrides)
         return st.lists(cls.item_strategy(), **kwargs)
@@ -80,6 +80,11 @@ class BaseTestSchema(BaseSchema):
             with tester.assertRaises(UpdateError):
                 doc.save(datasource)
 
+    @classmethod
+    def delete_data(cls, tester: unittest.TestCase, datasource, docs: List['BaseTestSchema']):
+        for doc in docs:
+            doc.delete(datasource)
+        tester.assertEqual(doc.__class__.count(datasource), 0)
 
     @classmethod
     def basic_tests(cls, tester: unittest.TestCase, datasource, docs: List['BaseTestSchema']):
@@ -131,6 +136,8 @@ class BaseTestSchema(BaseSchema):
         cls.insert_data(tester, datasource, docs)
         cls.basic_tests(tester, datasource, docs)
         cls.frame_test(tester, datasource, docs)
+        cls.delete_data(tester, datasource, docs)
+
 
 class SimpleSchema(BaseTestSchema):
     index_field: int = Index()
@@ -207,6 +214,7 @@ class InterpolatingSchema(BaseTestSchema):
     def test(cls, tester, datasource, docs: List['BaseTestSchema']):
         cls.insert_data(tester, datasource, docs)
         cls.basic_tests(tester, datasource, docs)
+        cls.delete_data(tester, datasource, docs)
 
 class IntervalTestSchema(BaseTestSchema):
 
@@ -214,7 +222,7 @@ class IntervalTestSchema(BaseTestSchema):
     def list_strategy(cls, **overrides):
         defaults = dict(
             unique_by=lambda x: x.index_field.left,
-            min_size=2, max_size=100
+            min_size=2, max_size=20,
         )
         kwargs = dict(defaults, **overrides)
         return st.lists(cls.item_strategy(), **kwargs)
@@ -239,6 +247,7 @@ class IntervalTestSchema(BaseTestSchema):
         cls.insert_data(tester, datasource, docs)
         cls.basic_tests(tester, datasource, docs)
         cls.frame_test(tester, datasource, docs)
+        cls.delete_data(tester, datasource, docs)
 
 
 @st.composite

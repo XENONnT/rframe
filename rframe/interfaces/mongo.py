@@ -117,8 +117,10 @@ try:
                 })
                 pipeline.append({"$limit": 1})
                 pipeline.append({"$project": { "_id": 0}})
-                results[field] = next(self.collection.aggregate(pipeline, allowDiskUse=True))[field]
-
+                try:
+                    results[field] = next(self.collection.aggregate(pipeline, allowDiskUse=True))[field]
+                except StopIteration:
+                    results[field] = None
             if len(fields) == 1:
                 return results[fields[0]]
             return results
@@ -134,7 +136,10 @@ try:
                 })
                 pipeline.append({"$limit": 1})
                 pipeline.append({"$project": { "_id": 0}})
-                results[field] = next(self.collection.aggregate(pipeline, allowDiskUse=True))[field]
+                try:
+                    results[field] = next(self.collection.aggregate(pipeline, allowDiskUse=True))[field]
+                except StopIteration:
+                    results[field] = None
 
             if len(fields) == 1:
                 return results[fields[0]]
@@ -143,7 +148,10 @@ try:
         def count(self):
             pipeline = list(self.pipeline)
             pipeline.append({"$count": "count"})
-            result = next(self.collection.aggregate(pipeline, allowDiskUse=True))
+            try:
+                result = next(self.collection.aggregate(pipeline, allowDiskUse=True))
+            except StopIteration:
+                return 0
             return result.get('count', 0)
 
         def logical_and(self, other):
@@ -367,6 +375,10 @@ try:
 
         def ensure_index(self, names, order=pymongo.ASCENDING):
             self.source.ensure_index([(name, order) for name in names])
+
+        def delete(self, doc):
+            return self.source.delete_one(doc.index_labels)
+
 
 except ImportError:
 

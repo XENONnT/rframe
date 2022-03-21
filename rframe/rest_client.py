@@ -61,6 +61,15 @@ class RestClient(BaseRestClient):
         with logger.catch():
             r.raise_for_status()
         return r.json()
+    
+    update = insert
+
+    def delete(self, doc):
+        data = doc.json()
+        r = self.client.delete(self.url, headers=self.headers, data=data)
+        with logger.catch():
+            r.raise_for_status()
+        return r.json()
 
     def unique(self, fields: List[str] = None, **labels):
         if not isinstance(fields, list):

@@ -92,3 +92,7 @@ class DatasourceInterface(ABC):
 
     def update_many(self, docs: list) -> list:
         return [self.update(doc) for doc in docs]
+
+    def delete(self, doc):
+        raise NotImplementedError
+    

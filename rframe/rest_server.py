@@ -75,6 +75,15 @@ try:
                     dependencies=can_write,
                 )
 
+                self._add_api_route(
+                    "",
+                    self._delete_route(),
+                    methods=["DELETE"],
+                    response_model=Optional[self.schema],  # type: ignore
+                    summary=f"Delete one {self.schema.__name__} document",
+                    dependencies=can_write,
+                )
+
         def _add_api_route(
             self,
             path: str,
@@ -238,9 +247,22 @@ try:
             return query_func
             
         def _insert_route(self, *args: Any, **kwargs: Any) -> Callable[..., Any]:
-            def insert(doc: self.schema) -> dict:
-                return doc.save(self.datasource)
+            def insert(doc: self.schema) -> self.schema:
+                try:
+                    doc.save(self.datasource)
+                    return doc
+                except Exception as e:
+                    raise HTTPException(status_code=400, detail=str(e))
             return insert
+
+        def _delete_route(self, *args: Any, **kwargs: Any) -> Callable[..., Any]:
+            def delete(doc: self.schema) -> self.schema:
+                try:
+                    doc.delete(self.datasource)
+                    return doc
+                except Exception as e:
+                    raise HTTPException(status_code=400, detail=str(e))
+            return delete
 
 except ImportError:
     class SchemaRouter:
