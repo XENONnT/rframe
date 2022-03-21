@@ -75,5 +75,3 @@ st.register_type_strategy(TimeInterval,
                             make_interval(TimeInterval,
                                           datetimes_strategy, 
                                           timedeltas_strategy))
-
-

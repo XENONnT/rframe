@@ -1,10 +1,12 @@
+import fsspec
+import json
+import numpy as np
+import pandas as pd
 from itertools import product
-from typing import List, Union
+from typing import Any, Dict, List, Optional, Union
 from warnings import warn
 from loguru import logger
 
-import numpy as np
-import pandas as pd
 
 from pydantic import BaseModel
 
@@ -17,6 +19,27 @@ from .base import BaseDataQuery, DatasourceInterface
 try:
     from tinydb import TinyDB, Query, where
     from tinydb.table import Table
+    from tinydb.storages import Storage
+
+    class FsspecStorage(Storage):
+        def __init__(self, path, **storage_kwargs):
+            self.path = path
+            self.storage_kwargs = storage_kwargs
+
+        def read(self) -> Optional[Dict[str, Dict[str, Any]]]:
+            with fsspec.open(self.path, **self.storage_kwargs) as f:
+                if not f.size:
+                    return None
+                if not f.readable():
+                    return None
+                data = json.load(f)
+                return data
+
+        def write(self, data: Dict[str, Dict[str, Any]]) -> None:
+            with fsspec.open(self.path, 'rb', **self.storage_kwargs) as f:
+                if not f.writable():
+                    raise IOError('Cannot write to the database. Access mode is "{0}"'.format(self._mode))
+                json.dump(data, f)
 
     class TinyDBSelection:
         def __init__(self, query, sort=None, select=None):
@@ -131,13 +154,12 @@ try:
         def from_url(cls, url: str,
                     table: str = None,
                     **kwargs):
-            if url.startswith('tinydb://'):
-                path = url[len('tinydb://'):]
-                db = TinyDB(path)
+            if url.endswith('.json'):
+                db = TinyDB(url, storage=FsspecStorage, **kwargs)
                 if table is not None:
                     db = db.table(table)
                 return cls(db)
-                
+
             raise NotImplementedError
 
         @singledispatchmethod

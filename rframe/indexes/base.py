@@ -5,7 +5,7 @@ from typing import Any
 import pandas as pd
 import pytz
 from pydantic import BaseModel, ValidationError
-from pydantic.fields import FieldInfo
+from pydantic.fields import FieldInfo, Undefined
 
 from rframe.utils import singledispatchmethod
 
@@ -15,7 +15,7 @@ class BaseIndex(FieldInfo):
     
     __slots__ = FieldInfo.__slots__ + ("name", "schema", "field", "nullable", "unique")
 
-    def __init__(self, default: Any = ..., **kwargs: Any) -> None:
+    def __init__(self, default: Any = Undefined, **kwargs: Any) -> None:
         self.nullable = kwargs.pop("nullable", True)
         self.unique = kwargs.pop("unique", True)
         super().__init__(default, **kwargs)
@@ -30,9 +30,14 @@ class BaseIndex(FieldInfo):
 
     @property
     def names(self):
+        '''returns a list of names
+        for compatibility with multi-index
+        '''
         return [self.name]
 
     def _validate_label(self, label):
+        '''Perform label validation
+        '''
         if label is None:
             return label
             

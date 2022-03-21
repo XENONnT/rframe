@@ -12,11 +12,11 @@ from .utils import jsonable
 class BaseRestClient(ABC):
 
     @abstractmethod
-    def query(self, **params):
+    def query(self, **params): # pragma: no cover
         pass
     
     @abstractmethod
-    def insert(self, data):
+    def insert(self, data): # pragma: no cover
         pass
 
     def unique(self, field):

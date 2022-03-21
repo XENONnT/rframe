@@ -173,8 +173,8 @@ class RemoteFrame:
     def __len__(self):
         return self.size
 
-    def __repr__(self) -> str:
-        return (
+    def __repr__(self) -> str: # pragma: no cover
+        return ( 
             f"{self.__class__.__name__}("
             f"index={self.index.names},"
             f"columns={self.columns},"
@@ -230,7 +230,7 @@ class RemoteSeries:
     def max(self):
         return self.frame.max(self.column)
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str: # pragma: no cover
         return f"RemoteSeries(index={self.frame.index.names}," f"column={self.column})"
 
     def __len__(self):
@@ -340,5 +340,5 @@ class SeriesAtLocator(AtIndexer):
             KeyError(f"{index} is an under defined index.")
         return self.obj.frame.at[index, self.obj.column]
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str: # pragma: no cover
         return f"SeriesAtLocator(index={self.obj.index.names})"

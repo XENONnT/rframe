@@ -205,10 +205,12 @@ class JsonMultiQuery(JsonBaseQuery):
 class JsonInterface(DatasourceInterface):
         
     @classmethod
-    def from_url(cls, url: str, **kwargs):
+    def from_url(cls, url: str, jsonpath='', **kwargs):
         if url.endswith(".json"):
             with fsspec.open(url, **kwargs) as f:
                 data = json.load(f)
+                for p in jsonpath.split('.'):
+                    data = data[p] if p else data
                 if not isinstance(data, list):
                     raise ValueError("JSON file must contain a list of documents")
                 return cls(data)
@@ -221,7 +223,12 @@ class JsonInterface(DatasourceInterface):
         )
 
     @compile_query.register(Index)
+    @compile_query.register(str)
     def simple_query(self, index, label):
+        if isinstance(index, str):
+            index, name = Index(), index
+            index.name = name
+
         return JsonSimpleQuery(index, self.source, index.name, label)
 
     @compile_query.register(IntervalIndex)

@@ -7,7 +7,7 @@ from loguru import logger
 class BaseDataQuery(ABC):
 
     @abstractmethod
-    def execute(self, limit=None, offset=None):
+    def execute(self, limit=None, offset=None): # pragma: no cover
         pass
 
     def unique(self, fields: Union[str, List[str]]):
@@ -74,7 +74,7 @@ class DatasourceInterface(ABC):
         )
 
     @classmethod
-    def from_url(cls, url: str, *args, **kwargs):
+    def from_url(cls, url: str, *args, **kwargs): 
         raise NotImplementedError
 
     @abstractmethod

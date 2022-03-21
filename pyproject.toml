@@ -51,6 +51,7 @@ black = "^22.1.0"
 fastapi = "^0.75.0"
 coveralls = "^3.3.1"
 tinydb = "^4.7.0"
+pytest-cov = "^3.0.0"
 
 [tool.poetry.scripts]
 rframe = 'rframe.cli:main'
@@ -68,3 +69,15 @@ build-backend = "poetry.masonry.api"
 versioning = "semver"
 from = {format = "poetry", path = "pyproject.toml"}
 to = {format = "setuppy", path = "setup.py"}
+
+[tool.poe.tasks]
+test   = "pytest --cov=rframe"
+format = "black ."
+clean  = """
+    rm -rf .coverage
+        .mypy_cache
+        .pytest_cache
+        dist
+        ./**/__pycache__
+    """
+lint   = "pylint rframe"
