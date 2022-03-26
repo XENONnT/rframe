@@ -217,9 +217,9 @@ try:
 
             # This is the actual implementation that will be called when 
             # a request is made to the route.
-            def query_func_impl(limit: int = None, skip: int = None, **kwargs) -> List[self.schema]:
+            def query_func_impl(limit: int = None, skip: int = None, sort = None, **kwargs) -> List[self.schema]:
                 query = self.schema.compile_query(self.datasource, **kwargs)
-                return [self.schema(**d) for d in query.execute(limit=limit, skip=skip)]
+                return [self.schema(**d) for d in query.execute(limit=limit, skip=skip, sort=sort)]
 
             # fastapi uses the function signature to generate the openapi docs
             # and request body validation. We need to edit the signature to include
@@ -237,6 +237,10 @@ try:
                             inspect.Parameter.POSITIONAL_OR_KEYWORD,
                             default=Query(None),
                             annotation=int),
+                inspect.Parameter("sort", 
+                            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                            default=Query(None),
+                            annotation=list),
             ]
             query_signature = makefun.add_signature_parameters(query_signature, extra)
 

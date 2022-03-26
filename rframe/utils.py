@@ -1,6 +1,7 @@
 import re
 import json
 import math
+import inspect
 import jsonschema
 
 from numbers import Number
@@ -30,6 +31,17 @@ def get_all_subclasses(type_):
         subclasses.append(subclass)
         subclasses.extend(get_all_subclasses(subclass))
     return subclasses
+
+def filter_kwargs(func, kwargs):
+    """Filter out keyword arguments that
+        are not in the call signature of func
+        and return filtered kwargs dictionary
+    """
+    params = inspect.signature(func).parameters
+    if any([str(p).startswith('**') for p in params.values()]):
+        # if func accepts wildcard kwargs, return all
+        return kwargs
+    return {k: v for k, v in kwargs.items() if k in params}
 
 
 def jsonable(obj):
@@ -161,6 +173,66 @@ class singledispatchmethod:
     @property
     def __isabstractmethod__(self):
         return getattr(self.func, "__isabstractmethod__", False)
+
+
+class FrozenDict(Mapping):
+    """https://stackoverflow.com/questions/2703599/what-would-a-frozen-dict-be"""
+
+    def __init__(self, *args, **kwargs):
+        self._d = dict(*args, **kwargs)
+        self._hash = None
+
+    def __iter__(self):
+        return iter(self._d)
+
+    def __len__(self):
+        return len(self._d)
+
+    def __getitem__(self, key):
+        return self._d[key]
+
+    def __hash__(self):
+        # It would have been simpler and maybe more obvious to
+        # use hash(tuple(sorted(self._d.iteritems()))) from this discussion
+        # so far, but this solution is O(n). I don't know what kind of
+        # n we are going to run into, but sometimes it's hard to resist the
+        # urge to optimize when it will gain improved algorithmic performance.
+        if self._hash is None:
+            hash_ = 0
+            for pair in self.items():
+                hash_ ^= hash(pair)
+            self._hash = hash_
+        return self._hash
+
+    def __lt__(self, other):
+        if isinstance(other, Mapping) and self.keys()==other.keys():
+            return tuple(self.values()) < tuple(other.values())
+        raise TypeError(f'< not supported between instances of {type(self)} and {type(other)}')
+
+    def __gt__(self, other):
+        if isinstance(other, Mapping) and self.keys()==other.keys():
+            return tuple(self.values()) > tuple(other.values())
+        raise TypeError(f'> not supported between instances of {type(self)} and {type(other)}')
+
+    def __le__(self, other):
+        return self < other or self == other
+    
+    def __ge__(self, other):
+        return self > other or self == other
+
+
+def hashable_doc(doc):
+    if isinstance(doc, dict):
+        doc = {k: hashable_doc(v) for k, v in doc.items()}
+        return FrozenDict(doc)
+    return doc
+
+
+def unhashable_doc(doc):
+    if isinstance(doc, FrozenDict):
+        doc = {k: unhashable_doc(v) for k, v in doc.items()}
+        return dict(doc)
+    return doc
 
 
 @dispatch(object, object)

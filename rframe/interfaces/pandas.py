@@ -23,12 +23,20 @@ class PandasBaseQuery(BaseDataQuery):
     def apply_selection(self, df):
         raise NotImplementedError
 
-    def execute(self, limit: int = None, skip: int = None):
+    def execute(self, limit: int = None, skip: int = None, sort=None):
         logger.debug('Applying pandas dataframe selection')
 
         if not len(self.df):
             return []
-        df = self.apply_selection(self.df)
+        if sort is None:
+            df = self.df
+        else:
+            if isinstance(sort, str):
+                sort = [sort]
+            elif isinstance(sort, dict):
+                sort = list(sort)
+            df = self.df.sort_values(sort)
+        df = self.apply_selection(df)
        
         if df.index.names or df.index.name:
             df = df.reset_index()

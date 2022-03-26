@@ -15,9 +15,9 @@ class RestQuery(BaseDataQuery):
         self.client = client
         self.params = params if params is not None else {}
 
-    def execute(self, limit: int = None, skip: int = None):
-        logger.debug(f'Executing rest api query with skip={skip} and limit={limit}')
-        return self.client.query(limit=limit, skip=skip, **self.params)
+    def execute(self, limit: int = None, skip: int = None, sort=None):
+        logger.debug(f'Executing rest api query with skip={skip}, sort={sort} and limit={limit}')
+        return self.client.query(limit=limit, skip=skip, sort=sort, **self.params)
 
     def unique(self, fields: Union[str, List[str]]):
         return self.client.unique(fields, **self.params)

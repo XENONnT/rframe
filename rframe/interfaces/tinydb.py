@@ -13,7 +13,8 @@ from pydantic import BaseModel
 from ..types import Interval
 
 from ..indexes import Index, InterpolatingIndex, IntervalIndex, MultiIndex
-from ..utils import jsonable, singledispatchmethod
+from ..utils import jsonable, singledispatchmethod, hashable_doc, unhashable_doc
+
 from .base import BaseDataQuery, DatasourceInterface
 
 try:
@@ -88,7 +89,7 @@ try:
                 docs.extend(selected)
             return docs
 
-        def execute(self, limit=None, skip=None):
+        def execute(self, limit=None, skip=None, sort=None):
             logger.debug('Applying tinydb selection')
             
             docs = self.apply_selection(self.table)
@@ -112,7 +113,10 @@ try:
             results = {}
             for field in fields:
                 values = [doc[field] for doc in docs]
-                results[field] = list(np.unique(values))
+                values = set([hashable_doc(v) for v in values])
+                values = [unhashable_doc(v) for v in values]
+                results[field] = values
+
             if len(fields) == 1:
                 return results[fields[0]]
             return results

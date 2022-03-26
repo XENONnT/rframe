@@ -33,6 +33,12 @@ class IntervalIndex(BaseIndex):
         return label
 
     def to_pandas(self, label):
+        '''Convert a label to a pandas interval'''
+        
+        
+        if isinstance(label,pd.Interval):
+            return label
+
         if isinstance(label, Mapping):
             left = self._to_pandas(label["left"])
             right = self._to_pandas(label["right"])
@@ -47,7 +53,7 @@ class IntervalIndex(BaseIndex):
         else:
             raise TypeError(
                 f"{self.name} must be a Mapping,Interval"
-                "or Iterable of length 2, got {type(label)} instead."
+                f"or Iterable of length 2, got {type(label)} instead."
             )
 
         label = pd.Interval(left, right, closed=self.closed)

@@ -20,7 +20,7 @@ DB_NAME = "tinydb_tests.json"
 TABLE_NAME = "tinydb_test"
 
 
-class TestMongo(unittest.TestCase):
+class TestTinyDB(unittest.TestCase):
     """
     Test the TinyDB interface
 

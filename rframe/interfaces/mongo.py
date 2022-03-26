@@ -66,15 +66,39 @@ try:
             self.collection = collection
             self.pipeline = pipeline
 
-        def execute(self, limit: int = None, skip: int = None):
+        @property
+        def docs_per_label(self):
+            n = 1
+            if isinstance(self.index, MultiIndex):
+                for index in self.index.indexes:
+                    if self.labels.get(index.name, None) is not None:
+                        n *= index.DOCS_PER_LABEL
+            elif self.labels.get(self.index.name, None) is not None:
+                n *= self.index.DOCS_PER_LABEL
+            return n
+
+        def execute(self, limit: int = None, skip: int = None, sort=None):
+            return list(self.iter(limit=limit, skip=skip, sort=sort))
+
+        def iter(self, limit=None, skip=None, sort=None):
             pipeline = list(self.pipeline)
 
+            if sort is not None:
+                sort = [sort] if isinstance(sort, str) else sort
+                if isinstance(sort, list):
+                    sort_arg = { field: 1 for field in sort}
+                elif isinstance(sort, dict):
+                    sort_arg = sort
+                else:
+                    raise TypeError(f"sort must be a list or dict, got {type(sort)}.")
+                pipeline = [{ "$sort": sort_arg }] + pipeline
+
             if isinstance(skip, int):
-                raw_skip = skip * self.index.DOCS_PER_LABEL
+                raw_skip = skip * self.docs_per_label
                 pipeline.append({"$skip": raw_skip})
 
             if isinstance(limit, int):
-                raw_limit = limit * self.index.DOCS_PER_LABEL
+                raw_limit = limit * self.docs_per_label
                 raw_limit = int(raw_limit)
                 pipeline.append({"$limit": raw_limit})
             
@@ -82,10 +106,27 @@ try:
 
             logger.debug(f'Executing mongo aggregation: {pipeline}.')
 
-            docs = list(self.collection.aggregate(pipeline, allowDiskUse=True))
-
-            docs = self.index.reduce(docs, self.labels)
-            return docs
+            # docs = list(self.collection.aggregate(pipeline, allowDiskUse=True))
+            collected = 0
+            limit = limit if limit is not None else float('inf')
+            docs = []
+            for doc in self.collection.aggregate(pipeline, allowDiskUse=True):
+                docs.append(doc)
+                if len(docs) >= self.docs_per_label:
+                    docs = self.index.reduce(docs, self.labels)
+                    for doc in docs:
+                        yield doc
+                        collected += 1
+                        if collected >= limit:
+                            return
+                    docs = []
+            if len(docs) and collected<limit:
+                docs = self.index.reduce(docs, self.labels)
+                for doc in docs:
+                    yield doc
+                    collected += 1
+                    if collected >= limit:
+                        return
 
         def unique(self, fields: Union[str, List[str]]):
             if isinstance(fields, str):
@@ -379,6 +420,9 @@ try:
         def delete(self, doc):
             return self.source.delete_one(doc.index_labels)
 
+        def initdb(self, schema):
+            index_names = list(schema.get_index_fields())
+            self.ensure_index(index_names)
 
 except ImportError:
 

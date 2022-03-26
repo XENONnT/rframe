@@ -21,6 +21,8 @@ class RemoteFrame:
     schema: Type[BaseSchema]
     db: Any
 
+    _index = None
+
     def __init__(self, schema: Type[BaseSchema], datasource: Any = None, **labels) -> None:
         self.schema = schema
         self._datasource = datasource
@@ -50,15 +52,21 @@ class RemoteFrame:
 
     @property
     def columns(self):
-        return list(self.schema.get_column_fields())
+        return pd.Index(list(self.schema.get_column_fields()))
 
     @property
     def index(self):
-        return self.schema.get_index()
+        if self._index is None:
+            self._recreate_index()
+        return self._index
 
     @property
-    def loc(self):
+    def loc(self) -> 'LocIndexer':
         return LocIndexer(self)
+
+    @property
+    def iloc(self) -> 'ILocIndexer':
+        return ILocIndexer(self)
 
     @property
     def at(self):
@@ -70,12 +78,23 @@ class RemoteFrame:
 
     def head(self, n=10) -> pd.DataFrame:
         """Return first n documents as a pandas dataframe"""
-        docs = self.schema.find_first(self.datasource, n=n, **self._labels)
-        index_fields = list(self.schema.get_index_fields())
-        all_fields = index_fields + self.columns
-        df = pd.DataFrame([doc.pandas_dict() for doc in docs], columns=all_fields)
-        idx = [c for c in index_fields if c in df.columns]
-        return df.sort_values(idx).set_index(idx)
+        sort = list(self.schema.get_index_fields())
+        return self.schema.find_df(self.datasource, _limit=n, _sort=sort, **self._labels)
+
+    def isel(self, idx: Union[int,slice]):
+        """Get a single document or slice by index"""
+        if isinstance(idx, int):
+            idx = slice(idx, idx+1)
+        if not isinstance(idx, slice):
+            raise ValueError("Index must be an integer or slice")
+        skip = idx.start if idx.start else 0
+        limit = idx.stop - skip if idx.stop is not None else None
+        sort = list(self.schema.get_index_fields())
+        return self.schema.find_df(self.datasource,
+                                   _skip=skip,
+                                   _limit=limit,
+                                   _sort=sort,
+                                   **self._labels)
 
     def unique(self, columns: Union[str, List[str]] = None):
         """Return unique values for each column"""
@@ -125,7 +144,9 @@ class RemoteFrame:
         labels = {name: lbl for name, lbl in zip(self.index.names, args)}
         kwargs.update(labels)
         doc = self.schema(**kwargs)
-        return doc.save(self.datasource)
+        res = doc.save(self.datasource)
+        self._index = None
+        return res
 
     def append(
         self, records: Union[pd.DataFrame, List[dict]]
@@ -148,9 +169,24 @@ class RemoteFrame:
             except (InsertionError, UpdateError) as e:
                 failed.append(doc)
                 errors.append(str(e))
-
+        if len(succeeded):
+            self._index = None
         return succeeded, failed, errors
 
+    def _recreate_index(self):
+        fields = list(self.schema.get_index_fields())
+        unique = self.unique(fields)
+        if isinstance(unique, dict):
+            values = []
+            for k,vs in unique.items():
+                index = self.schema.index_for(k)
+                values.append([index.to_pandas(vi) for vi in vs])
+            self._index =  pd.MultiIndex.from_product(values, names=fields)
+        else:
+            index = self.schema.index_for(fields[0])
+            unique = [index.to_pandas(vi) for vi in unique]
+            self._index = pd.Index(unique, name=fields[0])
+        
     def __getitem__(self, index: Tuple[IndexLabel, ...]) -> "RemoteSeries":
         if isinstance(index, str) and index in self.columns:
             return RemoteSeries(self, index)
@@ -199,8 +235,12 @@ class RemoteSeries:
         return self.frame.sel(*index)[self.column]
 
     @property
-    def loc(self):
+    def loc(self) -> 'SeriesLocIndexer':
         return SeriesLocIndexer(self)
+
+    @property
+    def iloc(self) -> 'SeriesILocIndexer':
+        return SeriesILocIndexer(self)
 
     @property
     def at(self):
@@ -241,6 +281,11 @@ class Indexer:
     def __init__(self, obj: RemoteFrame):
         self.obj = obj
 
+
+class ILocIndexer(Indexer):
+
+    def __getitem__(self, index: Union[int,slice]) -> pd.DataFrame:
+        return self.obj.isel(index)
 
 class LocIndexer(Indexer):
     def __call__(self, *args: IndexLabel, **kwargs: IndexLabel) -> pd.DataFrame:
@@ -298,6 +343,10 @@ class SeriesLocIndexer(Indexer):
     def __repr__(self) -> str:
         return f"SeriesLocIndexer(index={self.obj.index.names})"
 
+class SeriesILocIndexer(Indexer):
+
+    def __getitem__(self, index: Union[int,slice]) -> pd.DataFrame:
+        return self.obj.iloc[index][self.column]
 
 class AtIndexer(Indexer):
     def __getitem__(self, key: Tuple[Tuple[IndexLabel, ...], str]) -> Any:

@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 
 from ..indexes import Index, InterpolatingIndex, IntervalIndex, MultiIndex
-from ..utils import are_equal, jsonable, singledispatchmethod
+from ..utils import jsonable, singledispatchmethod, hashable_doc, unhashable_doc
 from .base import BaseDataQuery, DatasourceInterface
 
 
@@ -32,13 +32,20 @@ class JsonBaseQuery(BaseDataQuery):
     def apply_selection(self, records):
         return list(filter(self.filter, records))
 
-    def execute(self, limit: int = None, skip: int = None):
+    def execute(self, limit: int = None, skip: int = None, sort = None):
         logger.debug('Applying pandas dataframe selection')
 
         if not len(self.data):
             return []
-        
-        docs = self.apply_selection(self.data)
+        if sort is None:
+            data = self.data
+        else:
+            if isinstance(sort, str):
+                sort = [sort]
+            data = [hashable_doc(d) for d in self.data]
+            data = sorted(data, key=lambda d: tuple(d[s] for s in sort))
+            data = [unhashable_doc(d) for d in data]
+        docs = self.apply_selection(data)
        
         if limit is not None:
             start = skip * self.index.DOCS_PER_LABEL if skip is not None else 0
@@ -80,7 +87,10 @@ class JsonBaseQuery(BaseDataQuery):
             results = {}
             for field in fields:
                 values = [doc[field] for doc in docs]
-                results[field] = np.unique(values)
+                values = set([hashable_doc(v) for v in values])
+                values = [unhashable_doc(v) for v in values]
+                results[field] = values
+
             if len(fields) == 1:
                 return results[fields[0]]
             return results

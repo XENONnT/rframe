@@ -41,13 +41,15 @@ class RestClient(BaseRestClient):
     def summary_url(self):
         return self.url.rstrip('/') + '/summary'
 
-    def query(self, limit: int = None, skip: int = None, **labels):
+    def query(self, limit: int = None, skip: int = None, sort = None, **labels):
         labels = jsonable(labels)
         params = {}
         if limit is not None:
             params['limit'] = limit
         if skip is not None:
             params['skip'] = skip
+        if sort is not None:
+            params['sort'] = sort
         r = self.client.post(self.url, headers=self.headers,
                         json=labels, params=params)
         

@@ -122,10 +122,15 @@ class BaseSchema(BaseModel):
         returns extracted labels and remaining kwargs
         '''
         labels = {}
-        for name in cls.__fields__:
+        
+        for name, field in cls.__fields__.items():
             label = kwargs.pop(name, None)
-            if label is not None:
-                labels[name] = label           
+            if label is None:
+                label = kwargs.pop(field.alias, None)
+            if label is None:
+                continue
+            labels[name] = label
+
         return labels, kwargs
 
     @classmethod
@@ -155,28 +160,42 @@ class BaseSchema(BaseModel):
         return query
 
     @classmethod
-    def _find(cls, datasource=None, _skip=None, _limit=None, **labels) -> List["BaseSchema"]:
+    def _find(cls, datasource=None, _skip=None, _limit=None, 
+            _sort=None, **labels) -> List["BaseSchema"]:
         ''' Internal find function, performs data validation but
         returns raw dicts, not schema instances.
         '''
 
         query = cls.compile_query(datasource=datasource, **labels)
-        docs = query.execute(limit=_limit, skip=_skip)
-        # use schema to validate docs returned by backend
-        # FIXME: maybe just pass instances instead of dicts
-        docs = [cls(**doc).dict() for doc in docs]
-        return docs
+        for doc in query.iter(limit=_limit, skip=_skip, sort=_sort):
+            yield cls(**doc).dict()
+        # docs = query.execute(limit=_limit, skip=_skip)
+        # # use schema to validate docs returned by backend
+        # # FIXME: maybe just pass instances instead of dicts
+        # docs = [cls(**doc).dict() for doc in docs]
+        # return docs
 
     @classmethod
-    def find(cls, datasource=None, **labels) -> List["BaseSchema"]:
+    def find(cls, datasource=None, _skip=None,
+                _limit=None, _sort=None, **labels) -> List["BaseSchema"]:
         ''' Find documents in datasource matching the given labels
-        returns List[cls]
+        returns List[BaseSchema]
         '''
-        return [cls(**doc) for doc in  cls._find(datasource, **labels)]
+
+        return [cls(**doc) for doc in cls._find(datasource, _skip=_skip,
+                                                _limit=_limit, _sort=_sort, **labels)]
 
     @classmethod
-    def find_df(cls, datasource=None, **labels) -> pd.DateOffset:
-        docs = [d.pandas_dict() for d in cls.find(datasource, **labels)]
+    def find_iter(cls, datasource=None, _skip=None,
+                    _limit=None, _sort=None, **labels):
+        for doc in cls._find(datasource, _skip=_skip,
+                            _limit=_limit, _sort=_sort, **labels):
+            yield cls(**doc)
+
+    @classmethod
+    def find_df(cls, datasource=None, _skip=None, _limit=None, _sort=None, **labels) -> pd.DateOffset:
+        docs = [d.pandas_dict() for d in cls.find(datasource, _skip=_skip,
+                                                 _limit=_limit, _sort=_sort, **labels)]
         df = pd.json_normalize(docs)
         if not len(df):
             df = df.reindex(columns=list(cls.__fields__))
@@ -186,13 +205,8 @@ class BaseSchema(BaseModel):
         return df.set_index(index_fields)
 
     @classmethod
-    def find_first(cls, datasource=None, n=1, **labels) -> "BaseSchema":
-        docs = cls._find(datasource=datasource, _limit=n, **labels)
-        return [cls(**doc) for doc in docs]
-
-    @classmethod
-    def find_one(cls, datasource=None, **labels) -> "BaseSchema":
-        docs = cls.find_first(datasource=datasource, n=1, **labels)
+    def find_one(cls, datasource=None, _sort=None, **labels) -> "BaseSchema":
+        docs = cls.find(datasource=datasource, _limit=1, _sort=_sort, **labels)
         if docs:
             return docs[0]
 
@@ -209,6 +223,7 @@ class BaseSchema(BaseModel):
                 "List[Mapping] or DataFrame],"
                 f"got {type(record)}"
             )
+
         data = dict(record)
         for name in cls.get_index_fields():
             index = cls.index_for(name)

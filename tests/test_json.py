@@ -20,7 +20,7 @@ from .test_schemas import *
 FILE_NAME = "json_tests.json"
 
 
-class TestMongo(unittest.TestCase):
+class TestJson(unittest.TestCase):
     """
     Test the JSON interface
 

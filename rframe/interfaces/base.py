@@ -2,13 +2,28 @@ from abc import ABC, abstractmethod
 from typing import List, Union
 from rframe import interfaces
 from loguru import logger
+from ..utils import filter_kwargs
 
 
 class BaseDataQuery(ABC):
 
     @abstractmethod
-    def execute(self, limit=None, offset=None): # pragma: no cover
+    def execute(self, limit=None, skip=None, sort=None): # pragma: no cover
         pass
+    
+    def iter(self, limit=None, skip=None, sort=None):
+        yield from self.execute(limit=limit, skip=skip, sort=sort)
+
+    def paginate(self, page_size=100, limit=None, skip=None, sort=None):
+        docs = []
+        for doc in self.iter(limit=limit, skip=skip, sort=sort):
+            docs.append(doc)
+            if len(docs) == page_size:
+                yield docs
+                docs = []
+        if docs:
+            yield docs
+        
 
     def unique(self, fields: Union[str, List[str]]):
         raise NotImplementedError
@@ -21,6 +36,7 @@ class BaseDataQuery(ABC):
     
     def count(self):
         raise NotImplementedError
+
 
 class DatasourceInterface(ABC):
     _INTERFACES = {}
@@ -53,7 +69,8 @@ class DatasourceInterface(ABC):
         if isinstance(source, str):
             for klass in cls._INTERFACES.values():
                 try:
-                    interface = klass.from_url(source, *args, **kwargs)
+                    filtered_kwargs = filter_kwargs(klass.from_url, kwargs)
+                    interface = klass.from_url(source, *args, **filtered_kwargs)
                     logger.info(f'Found interface {klass}.')
                     break
                 except NotImplementedError:
@@ -67,7 +84,8 @@ class DatasourceInterface(ABC):
             if type_ in cls._INTERFACES:
                 interface_class = cls._INTERFACES[type_]
                 logger.info(f'Found interface {interface_class}.')
-                return interface_class(source, *args, **kwargs)
+                filtered_kwargs = filter_kwargs(interface_class, kwargs)
+                return interface_class(source, *args, **filtered_kwargs)
 
         raise NotImplementedError(
             f"No implementation for data source of type {type(source)}"
@@ -96,3 +114,5 @@ class DatasourceInterface(ABC):
     def delete(self, doc):
         raise NotImplementedError
     
+    def initdb(self, schema):
+        raise NotImplementedError
