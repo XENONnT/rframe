@@ -2,7 +2,7 @@ import inspect
 import json
 
 import pandas as pd
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from pydantic.fields import FieldInfo, ModelField
 from typing import Dict, List, Mapping, Optional, Union
 
@@ -10,6 +10,7 @@ from rframe.utils import are_equal
 
 from .indexes import BaseIndex, Index, MultiIndex
 from .interfaces import get_interface
+from .interfaces.pandas import to_pandas
 
 
 class EditError(Exception):
@@ -103,6 +104,28 @@ class BaseSchema(BaseModel):
             field_info = Index()
         field_info.__set_name__(cls, name)
         return field_info
+
+    @classmethod
+    def validate_partial(cls, allow_None=True, **kwargs):
+        ''' Perform validation on subset of fields
+        '''
+        validated = {}
+        for name, field in cls.__fields__.items():
+            if name not in kwargs:
+                continue
+            val = kwargs[name]
+            if val is None and allow_None:
+                validated[name] = val
+                continue
+            val, error = field.validate(val, validated, loc='LabelType')
+            if error:
+                raise ValidationError([error])
+            validated[name] = val
+
+        if len(validated) == 1:
+            return validated[list(validated)[0]]
+
+        return validated
 
     @classmethod
     def rframe(cls, datasource=None):
@@ -244,7 +267,14 @@ class BaseSchema(BaseModel):
         elif isinstance(fields, str):
             fields = [fields]
         query = cls.compile_query(datasource, **labels)
-        return query.unique(fields)
+
+        unique = query.unique(fields)
+        if isinstance(unique, dict):
+            for k, vs in unique.items():
+                unique[k] = [cls.validate_partial(**{k: v}) for v in vs]
+        else:
+            unique = [cls.validate_partial(**{fields[0]: v}) for v in unique]
+        return unique
 
     @classmethod
     def min(cls, datasource=None, fields: Union[str,List[str]] = None, **labels):
@@ -253,7 +283,13 @@ class BaseSchema(BaseModel):
         elif isinstance(fields, str):
             fields = [fields]
         query = cls.compile_query(datasource, **labels)
-        return query.min(fields)
+        min = query.min(fields)
+        if isinstance(min, dict):
+            for k, v in min.items():
+                min[k] = cls.validate_partial(**{k: v})
+        else:
+            min = cls.validate_partial(**{fields[0]: min})
+        return min
 
     @classmethod
     def max(cls, datasource=None, fields: Union[str,List[str]] = None, **labels):
@@ -262,7 +298,13 @@ class BaseSchema(BaseModel):
         elif isinstance(fields, str):
             fields = [fields]
         query = cls.compile_query(datasource, **labels)
-        return query.max(fields)
+        max = query.max(fields)
+        if isinstance(max, dict):
+            for k, v in max.items():
+                max[k] = cls.validate_partial(**{k: v})
+        else:
+            max = cls.validate_partial(**{fields[0]: max})
+        return max
         
     @classmethod
     def count(cls, datasource=None, **labels):
@@ -271,8 +313,7 @@ class BaseSchema(BaseModel):
 
     @property
     def index_labels(self):
-        data = self.dict()
-        return {k: data[k] for k in self.get_index_fields()}
+        return {k: getattr(self, k) for k in self.get_index_fields()}
 
     @property
     def index_labels_tuple(self):
@@ -451,11 +492,7 @@ class BaseSchema(BaseModel):
         return are_equal(self.index_labels, other.index_labels)
 
     def pandas_dict(self):
-        data = self.dict()
-        for name, label in self.index_labels.items():
-            index = self.index_for(name)
-            data[name] = index.to_pandas(label)
-        return data
+        return to_pandas(self.dict())
 
     @classmethod
     def empty_dframe(cls):

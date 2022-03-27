@@ -1,12 +1,16 @@
+from functools import singledispatch
+import numbers
 from loguru import logger
 from datetime import datetime
 from typing import Any, List, Union
 
+import numpy as np
 import pandas as pd
 
 from ..indexes import Index, InterpolatingIndex, IntervalIndex, MultiIndex
 from ..utils import singledispatchmethod
 from .base import BaseDataQuery, DatasourceInterface
+from ..types import Interval
 
 
 class PandasBaseQuery(BaseDataQuery):
@@ -47,6 +51,7 @@ class PandasBaseQuery(BaseDataQuery):
         docs = df.to_dict(orient="records")
         docs = self.index.reduce(docs, self.labels)
         logger.debug(f'Done. Found {len(docs)} documents.')
+        docs = from_pandas(docs)
         return docs
 
     def min(self, fields: Union[str,List[str]]):
@@ -59,7 +64,8 @@ class PandasBaseQuery(BaseDataQuery):
                 df = df.reset_index()
             results[field] = df[field].min()
         if len(fields) == 1:
-            return results[fields[0]]
+            results = results[fields[0]]
+        results = from_pandas(results)
         return results
 
     def max(self, fields: Union[str,List[str]]):
@@ -72,7 +78,8 @@ class PandasBaseQuery(BaseDataQuery):
                 df = df.reset_index()
             results[field] = df[field].max()
         if len(fields) == 1:
-            return results[fields[0]]
+            results = results[fields[0]]
+        results = from_pandas(results)
         return results
     
     def unique(self, fields: Union[str,List[str]]):
@@ -85,7 +92,8 @@ class PandasBaseQuery(BaseDataQuery):
                 df = df.reset_index()
             results[field] = list(df[field].unique())
         if len(fields) == 1:
-            return results[fields[0]]
+            results = results[fields[0]]
+        results = from_pandas(results)
         return results
 
     def count(self):
@@ -261,9 +269,9 @@ class PandasInterface(DatasourceInterface):
         return PandasMultiQuery(index, self.source, queries)
 
     def insert(self, doc):
-        schema = doc.__class__
-        index = tuple(schema.index_for(name).to_pandas(label)
-                        for name, label in doc.index_labels.items())
+        index = doc.index_labels_tuple
+        index = to_pandas(index)
+
         if len(index) == 1:
             index = index[0]
         self.source.loc[index,:] = doc.column_values
@@ -271,9 +279,85 @@ class PandasInterface(DatasourceInterface):
     update = insert
 
     def delete(self, doc):
-        pandas_dict = doc.pandas_dict()
-        index = tuple(pandas_dict[k] for k in doc.index_labels)
+        index = doc.index_labels_tuple
+        index = to_pandas(index)
+
         if len(index) == 1:
             index = index[0]
         return self.source.drop(index=index,
                                 inplace=True)
+
+@singledispatch
+def to_pandas(obj):
+    return obj
+
+@to_pandas.register(datetime)
+def to_pandas_datetime(obj):
+    return pd.to_datetime(obj)
+
+@to_pandas.register(dict)
+def to_pandas_dict(obj: dict):
+    if len(obj)==2 and 'left' in obj and 'right' in obj:
+        left, right = to_pandas(obj['left']), to_pandas(obj['right'])
+        return pd.Interval(left, right)
+    return {k: to_pandas(v) for k, v in obj.items()}
+
+@to_pandas.register(list)
+def to_pandas_list(obj):
+    return [to_pandas(v) for v in obj]
+
+@to_pandas.register(tuple)
+def to_pandas_tuple(obj):
+    return tuple(to_pandas(v) for v in obj)
+
+@to_pandas.register(Interval)
+def to_pandas_interval(obj):
+    left, right = to_pandas(obj.left), to_pandas(obj.right)
+    return pd.Interval(left, right)
+
+
+@singledispatch
+def from_pandas(obj):
+    return obj
+
+@from_pandas.register(pd.DataFrame)
+def from_pandas_df(df):
+    return from_pandas(df.to_dict(orient="records"))
+
+@from_pandas.register(pd.Series)
+def from_pandas_dict(obj):
+    return from_pandas(obj.to_dict())
+
+@from_pandas.register(pd.Interval)
+def from_pandas_interval(obj):
+    left, right = from_pandas(obj.left), from_pandas(obj.right)
+    type_ = Interval[type(left)]
+    return type_(left=left, right=right)
+
+@from_pandas.register(list)
+def from_pandas_list(obj):
+    return [from_pandas(v) for v in obj]
+
+@from_pandas.register(tuple)
+def from_pandas_tuple(obj):
+    return tuple(from_pandas(v) for v in obj)
+
+@from_pandas.register(dict)
+def from_pandas_dict(obj):
+    return {k: from_pandas(v) for k, v in obj.items()}
+
+@from_pandas.register(pd.Timestamp)
+def from_pandas_timestamp(obj):
+    return obj.to_pydatetime()
+
+@from_pandas.register(pd.Timedelta)
+def from_pandas_timedelta(obj):
+    return obj.to_pytimedelta()
+
+@from_pandas.register(numbers.Integral)
+def from_pandas_int(obj):
+    return int(obj)
+
+@from_pandas.register(numbers.Real)
+def from_pandas_float(obj):
+    return float(obj)

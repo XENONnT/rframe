@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 from itertools import product
 from typing import Any, Dict, List, Optional, Union
-from warnings import warn
 from loguru import logger
 
 
@@ -323,7 +322,7 @@ except ImportError:
         def __init__(self) -> None:
             raise TypeError("Cannot use TinyDB interface. tindb not installed.")
 
-    warn("tinydb not found, cannot register TinDB interface.")
+    logger.info("tinydb not found, cannot register TinDB interface.")
 
 
 def overlap_query(target, left, right):

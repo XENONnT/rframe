@@ -238,15 +238,17 @@ class JsonInterface(DatasourceInterface):
         if isinstance(index, str):
             index, name = Index(), index
             index.name = name
-
+        label = jsonable(label)
         return JsonSimpleQuery(index, self.source, index.name, label)
 
     @compile_query.register(IntervalIndex)
     def interval_query(self, index, label):
+        label = jsonable(label)
         return JsonIntervalQuery(index, self.source, index.name, label)
 
     @compile_query.register(InterpolatingIndex)
     def interpolating_query(self, index, label):
+        label = jsonable(label)
         return JsonInterpolationQuery(index, self.source, index.name, label)
 
     @compile_query.register(list)
@@ -285,4 +287,3 @@ class JsonInterface(DatasourceInterface):
 
     def delete(self, doc):
         del self.source[self._find(doc)]
-

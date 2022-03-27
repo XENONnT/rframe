@@ -4,6 +4,7 @@ from typing import ClassVar, Literal, Mapping, TypeVar
 import pydantic
 from pydantic import BaseModel, root_validator, ValidationError
 
+
 LabelType = TypeVar("LabelType", int, str, datetime.datetime)
 
 # allow up to 8 byte integers
@@ -46,7 +47,6 @@ class Interval(BaseModel):
 
         if v > cls._max:
             raise ValueError(f'{cls} boundary must be less than {cls._max}.')
-
 
     @classmethod
     def validate_field(cls, v, field):
@@ -124,6 +124,9 @@ class Interval(BaseModel):
             return False
         return self.left >= other.right
 
+    def __len__(self):
+        return self.right - self.left
+        
     def clone(self, left=None, right=None):
         return self.__class__(left=left or self.left,
                               right=right or self.right)
@@ -143,3 +146,4 @@ class TimeInterval(Interval):
 
     left: datetime.datetime
     right: datetime.datetime = MAX_DATETIME
+

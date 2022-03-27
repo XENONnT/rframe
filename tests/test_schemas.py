@@ -222,7 +222,7 @@ class IntervalTestSchema(BaseTestSchema):
     def list_strategy(cls, **overrides):
         defaults = dict(
             unique_by=lambda x: x.index_field.left,
-            min_size=2, max_size=20,
+            min_size=2, max_size=10,
         )
         kwargs = dict(defaults, **overrides)
         return st.lists(cls.item_strategy(), **kwargs)

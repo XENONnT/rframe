@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from ..types import Interval
 
 from ..indexes import Index, InterpolatingIndex, IntervalIndex, MultiIndex
-from ..utils import singledispatchmethod
+from ..utils import jsonable, singledispatchmethod
 from .base import BaseDataQuery, DatasourceInterface
 
 try:
@@ -159,8 +159,9 @@ try:
                 pipeline.append({"$limit": 1})
                 pipeline.append({"$project": { "_id": 0}})
                 try:
+
                     results[field] = next(self.collection.aggregate(pipeline, allowDiskUse=True))[field]
-                except StopIteration:
+                except (StopIteration, KeyError):
                     results[field] = None
             if len(fields) == 1:
                 return results[fields[0]]
@@ -179,7 +180,7 @@ try:
                 pipeline.append({"$project": { "_id": 0}})
                 try:
                     results[field] = next(self.collection.aggregate(pipeline, allowDiskUse=True))[field]
-                except StopIteration:
+                except (StopIteration, KeyError):
                     results[field] = None
 
             if len(fields) == 1:
@@ -277,6 +278,8 @@ try:
                         f'{index} with label: {label}')
             name = index.name if isinstance(index, Index) else index
 
+            label = jsonable(label)
+
             if isinstance(label, slice):
                 # support basic slicing, this will only work
                 # for values that are comparable with the
@@ -320,6 +323,9 @@ try:
             """
             logger.debug('Building mongo interpolating-query for index: '
                         f'{index} with label: {label}')
+            
+            label = jsonable(label)
+
             if label is None:
                 labels = {index.name: label}
                 return MongoAggregation(index, labels, self.source, [])
@@ -358,6 +364,8 @@ try:
                 intervals = label
             else:
                 intervals = [label]
+            
+            intervals = jsonable(intervals)
 
             queries = []
             for interval in intervals:
@@ -399,11 +407,11 @@ try:
             avoid replacing existing documents with a copy.
             """
             from rframe.schema import InsertionError
-
+            index = jsonable(doc.index_labels)
             try:
                 doc = self.source.find_one_and_update(
-                    doc.index_labels,
-                    {"$set": doc.dict()},
+                    index,
+                    {"$set": doc.jsonable()},
                     projection={"_id": False},
                     upsert=True,
                     return_document=pymongo.ReturnDocument.AFTER,
@@ -418,7 +426,8 @@ try:
             self.source.ensure_index([(name, order) for name in names])
 
         def delete(self, doc):
-            return self.source.delete_one(doc.index_labels)
+            index = jsonable(doc.index_labels)
+            return self.source.delete_one(index)
 
         def initdb(self, schema):
             index_names = list(schema.get_index_fields())

@@ -4,12 +4,14 @@ import math
 import inspect
 import jsonschema
 
-from numbers import Number
-from functools import partial
+from numbers import Integral, Number, Real
+from functools import partial, singledispatch
 from pydantic import BaseModel
 from multipledispatch import dispatch
 from pydantic.json import ENCODERS_BY_TYPE
 from collections.abc import Iterable, Mapping
+
+from .types import Interval
 
 
 dispatch_namespace = {}
@@ -45,6 +47,10 @@ def filter_kwargs(func, kwargs):
 
 
 def jsonable(obj):
+
+    if obj is None:
+        return obj
+
     if isinstance(obj, BaseModel):
         return json.loads(obj.json())
 
@@ -59,7 +65,16 @@ def jsonable(obj):
 
     if type(obj) in ENCODERS_BY_TYPE:
         return ENCODERS_BY_TYPE[type(obj)](obj)
+
+    if isinstance(obj, Real):
+        return float(obj)
+
+    if isinstance(obj, Integral):
+        return int(obj)
     
+    if isinstance(obj, slice):
+        return slice(jsonable(obj.start), jsonable(obj.stop), jsonable(obj.step))
+
     raise TypeError(f"Cannot convert {type(obj)} to JSON")
 
 
@@ -98,7 +113,6 @@ def as_bson_schema(schema, resolver=None):
 Copied from python 3.8 functools for 3.7 support
 """
 
-from functools import singledispatch
 
 WRAPPER_ASSIGNMENTS = (
     "__module__",
@@ -267,3 +281,8 @@ def are_equal(x, y):
         if k not in y or not are_equal(v, y[k]):
             return False
     return True
+
+
+@dispatch(Interval, Interval)
+def are_equal(x, y):
+    return are_equal(x.left, y.left) and are_equal(x.right, y.right)
