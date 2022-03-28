@@ -192,11 +192,6 @@ class BaseSchema(BaseModel):
         query = cls.compile_query(datasource=datasource, **labels)
         for doc in query.iter(limit=_limit, skip=_skip, sort=_sort):
             yield cls(**doc).dict()
-        # docs = query.execute(limit=_limit, skip=_skip)
-        # # use schema to validate docs returned by backend
-        # # FIXME: maybe just pass instances instead of dicts
-        # docs = [cls(**doc).dict() for doc in docs]
-        # return docs
 
     @classmethod
     def find(cls, datasource=None, _skip=None,
@@ -228,8 +223,8 @@ class BaseSchema(BaseModel):
         return df.set_index(index_fields)
 
     @classmethod
-    def find_one(cls, datasource=None, _sort=None, **labels) -> "BaseSchema":
-        docs = cls.find(datasource=datasource, _limit=1, _sort=_sort, **labels)
+    def find_one(cls, datasource=None, _skip=None, _sort=None, **labels) -> "BaseSchema":
+        docs = cls.find(datasource=datasource, _skip=_skip, _limit=1, _sort=_sort, **labels)
         if docs:
             return docs[0]
 
@@ -393,9 +388,6 @@ class BaseSchema(BaseModel):
 
         raises an UpdateError if user defined checks fail.
         '''
-        # if not self.same_index(new):
-        #     raise UpdateError(f'Cannot update document ({self}) with {new}. '
-        #                       f'The index labels do not match.')
         try:
             self.pre_update(datasource, new=new)
         except Exception as e:
