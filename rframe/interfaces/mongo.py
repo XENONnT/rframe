@@ -1,4 +1,6 @@
-from itertools import product
+import datetime
+from functools import singledispatch
+import numbers
 from typing import List, Union
 from warnings import warn
 from loguru import logger
@@ -6,10 +8,8 @@ from loguru import logger
 import pandas as pd
 from pydantic import BaseModel
 
-from ..types import Interval
-
 from ..indexes import Index, InterpolatingIndex, IntervalIndex, MultiIndex
-from ..utils import jsonable, singledispatchmethod
+from ..utils import singledispatchmethod
 from .base import BaseDataQuery, DatasourceInterface
 
 query_precendence = {
@@ -266,7 +266,7 @@ try:
             
             label = labels.get(index.name, None)
 
-            label = jsonable(label)
+            label = to_mongo(label)
 
             if isinstance(label, slice):
                 # support basic slicing, this will only work
@@ -324,7 +324,7 @@ try:
             if label is None:
                 return MongoAggregation(index, labels, self.source, [])
 
-            label = jsonable(label)
+            label = to_mongo(label)
 
             numeric_fields = list(index.schema.get_numeric_fields())
             other_fields = [name for name in index.schema.__fields__ 
@@ -360,7 +360,7 @@ try:
             else:
                 intervals = [label]
             
-            intervals = jsonable(intervals)
+            intervals = to_mongo(intervals)
 
             queries = []
             for interval in intervals:
@@ -402,11 +402,11 @@ try:
             avoid replacing existing documents with a copy.
             """
             from rframe.schema import InsertionError
-            index = jsonable(doc.index_labels)
+            index = to_mongo(doc.index_labels)
             try:
                 doc = self.source.find_one_and_update(
                     index,
-                    {"$set": doc.jsonable()},
+                    {"$set": to_mongo(doc.dict())},
                     projection={"_id": False},
                     upsert=True,
                     return_document=pymongo.ReturnDocument.AFTER,
@@ -421,7 +421,7 @@ try:
             self.source.ensure_index([(name, order) for name in names])
 
         def delete(self, doc):
-            index = jsonable(doc.index_labels)
+            index = to_mongo(doc.index_labels)
             return self.source.delete_one(index)
 
         def initdb(self, schema):
@@ -676,3 +676,71 @@ def mongo_interpolating_aggregation(name, values, numeric_fields=(), groupby=(),
         pipeline += interpolation_stage
 
     return pipeline
+
+
+@singledispatch
+def to_mongo(obj):
+    return obj
+
+@to_mongo.register(dict)
+def to_mongo_dict(obj: dict):
+    return {k: to_mongo(v) for k, v in obj.items()}
+
+@to_mongo.register(list)
+def to_mongo_list(obj):
+    return [to_mongo(v) for v in obj]
+
+@to_mongo.register(tuple)
+def to_mongo_tuple(obj):
+    return tuple(to_mongo(v) for v in obj)
+
+@to_mongo.register(BaseModel)
+def to_mongo_interval(obj):
+    return to_mongo(obj.dict())
+
+@to_mongo.register(pd.DataFrame)
+def to_mongo_df(df):
+    return to_mongo(df.to_dict(orient="records"))
+
+@to_mongo.register(datetime.datetime)
+def to_mongo_datetime(obj):
+    # mongodb datetime has millisecond resolution
+    return obj.replace(microsecond=int(obj.microsecond/1000)*1000)
+
+@to_mongo.register(datetime.timedelta)
+def to_mongo_timedelta(obj):
+    # mongodb datetime has millisecond resolution
+    seconds = int(obj.total_seconds()*1e3)/1e3
+    return datetime.timedelta(seconds=seconds)
+
+@to_mongo.register(pd.Timestamp)
+def to_mongo_timestamp(obj):
+    return to_mongo(obj.to_pydatetime())
+
+@to_mongo.register(pd.Timedelta)
+def to_mongo_timedelta(obj):
+    return to_mongo(obj.to_pytimedelta())
+
+@to_mongo.register(numbers.Integral)
+def to_mongo_int(obj):
+    return int(obj)
+
+@to_mongo.register(numbers.Real)
+def to_mongo_float(obj):
+    return float(obj)
+
+@singledispatch
+def from_mongo(obj):
+    return obj
+
+@from_mongo.register(list)
+def from_mongo_list(obj):
+    return [from_mongo(v) for v in obj]
+
+@from_mongo.register(tuple)
+def from_mongo_tuple(obj):
+    return tuple(from_mongo(v) for v in obj)
+
+@from_mongo.register(dict)
+def from_mongo_dict(obj):
+    return {k: from_mongo(v) for k, v in obj.items()}
