@@ -55,9 +55,9 @@ class InterpolatingIndex(BaseIndex):
         self.inclusive = inclusive
         self.extrapolate = extrapolate
 
-    def can_extrapolate(self, index):
+    def can_extrapolate(self, labels):
         if callable(self.extrapolate):
-            return self.extrapolate(index)
+            return self.extrapolate(labels)
         return self.extrapolate
 
     def reduce(self, docs, label):
