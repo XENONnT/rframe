@@ -15,6 +15,12 @@ from ..indexes import Index, InterpolatingIndex, IntervalIndex, MultiIndex
 from ..utils import jsonable, singledispatchmethod
 from .base import BaseDataQuery, DatasourceInterface
 
+query_precendence = {
+    Index: 1,
+    IntervalIndex: 2,
+    InterpolatingIndex:3, 
+}
+
 try:
     import pymongo
     from pymongo.collection import Collection
@@ -249,8 +255,12 @@ try:
 
         def simple_multi_query(self, index, labels):
             pipeline = []
-
-            for idx, label in zip(index.indexes, labels.values()):
+            indexes = sorted(index.indexes,
+                             key=lambda x: query_precendence[type(x)])
+            for idx in indexes:
+                label = labels[idx.name]
+                if label is None:
+                    continue
                 others = [name for name in index.names if name != idx.name]
                 agg = self.compile_query(idx, label, others=others)
                 pipeline.extend(agg.pipeline)
