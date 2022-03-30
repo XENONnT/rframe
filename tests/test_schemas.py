@@ -107,7 +107,7 @@ class BaseTestSchema(BaseSchema):
             for field, value in doc.column_values.items():
                 assert are_equal(value, rf[field].at[doc.index_labels_tuple])
         
-        df = pd.concat([doc.to_pandas() for doc in docs])
+        df = pd.concat([doc.dframe() for doc in docs])
 
         tester.assertEqual(len(rf), len(df))
 

@@ -1,14 +1,16 @@
 
+from functools import singledispatch
 import json
 import toolz
 import fsspec
+import numpy as np
 
 from loguru import logger
-from datetime import datetime
 from typing import Any, List, Union
+from pydantic.datetime_parse import datetime_re
+from pydantic.validators import parse_datetime
 
-import numpy as np
-import pandas as pd
+from ..types import Interval
 
 from ..indexes import Index, InterpolatingIndex, IntervalIndex, MultiIndex
 from ..utils import jsonable, singledispatchmethod, hashable_doc, unhashable_doc
@@ -53,7 +55,11 @@ class JsonBaseQuery(BaseDataQuery):
             docs = docs[start:limit]
         
         docs = self.index.reduce(docs, self.labels)
+        
+        docs = from_json(docs)
+
         logger.debug(f'Done. Found {len(docs)} documents.')
+
         return docs
 
     def min(self, fields: Union[str,List[str]]):
@@ -64,6 +70,7 @@ class JsonBaseQuery(BaseDataQuery):
         for field in fields:
             values = [d[field] for d in docs]
             results[field] = min(values)
+        results = from_json(results)
         if len(fields) == 1:
             return results[fields[0]]
         return results
@@ -76,24 +83,25 @@ class JsonBaseQuery(BaseDataQuery):
         for field in fields:
             values = [d[field] for d in docs]
             results[field] = max(values)
+        results = from_json(results)
         if len(fields) == 1:
             return results[fields[0]]
         return results
     
     def unique(self, fields: Union[str,List[str]]):
-            if isinstance(fields, str):
-                fields = [fields]
-            docs = self.apply_selection(self.data)
-            results = {}
-            for field in fields:
-                values = [doc[field] for doc in docs]
-                values = set([hashable_doc(v) for v in values])
-                values = [unhashable_doc(v) for v in values]
-                results[field] = values
-
-            if len(fields) == 1:
-                return results[fields[0]]
-            return results
+        if isinstance(fields, str):
+            fields = [fields]
+        docs = self.apply_selection(self.data)
+        results = {}
+        for field in fields:
+            values = [doc[field] for doc in docs]
+            values = set([hashable_doc(v) for v in values])
+            values = [unhashable_doc(v) for v in values]
+            results[field] = values
+        results = from_json(results)
+        if len(fields) == 1:
+            return results[fields[0]]
+        return results
 
     def count(self):
         docs = self.apply_selection(self.data)
@@ -144,7 +152,7 @@ class JsonIntervalQuery(JsonBaseQuery):
         else:
             left = right = interval
 
-        left, right = jsonable(left), jsonable(right)
+        left, right = to_json(left), to_json(right)
 
         return (record[self.field]['left'] < right) and \
                (record[self.field]['right'] > left)
@@ -238,17 +246,17 @@ class JsonInterface(DatasourceInterface):
         if isinstance(index, str):
             index, name = Index(), index
             index.name = name
-        label = jsonable(label)
+        label = to_json(label)
         return JsonSimpleQuery(index, self.source, index.name, label)
 
     @compile_query.register(IntervalIndex)
     def interval_query(self, index, label):
-        label = jsonable(label)
+        label = to_json(label)
         return JsonIntervalQuery(index, self.source, index.name, label)
 
     @compile_query.register(InterpolatingIndex)
     def interpolating_query(self, index, label):
-        label = jsonable(label)
+        label = to_json(label)
         return JsonInterpolationQuery(index, self.source, index.name, label)
 
     @compile_query.register(list)
@@ -272,13 +280,13 @@ class JsonInterface(DatasourceInterface):
             raise KeyError(doc.index_labels)
 
     def insert(self, doc):
-        doc = doc.jsonable()
+        doc = to_json(doc.dict())
         self.source.append(doc)
 
     def update(self, doc):
         for i, d in enumerate(self.source):
             if doc.same_index(doc.__class__(**d)):
-                self.source[i] = doc.jsonable()
+                self.source[i] = to_json(doc.dict())
                 break
         else:
             from rframe.schema import UpdateError
@@ -287,3 +295,37 @@ class JsonInterface(DatasourceInterface):
 
     def delete(self, doc):
         del self.source[self._find(doc)]
+
+
+def to_json(obj):
+    return jsonable(obj)
+
+
+@singledispatch
+def from_json(obj):
+    return obj
+
+
+@from_json.register(str)
+def from_json_str(obj):
+    match = datetime_re.match(obj)  # type: ignore
+    if match is None:
+        return obj
+    return parse_datetime(obj)
+
+@from_json.register(list)
+def from_json_list(obj):
+    return [from_json(v) for v in obj]
+
+
+@from_json.register(tuple)
+def from_json_tuple(obj):
+    return tuple(from_json(v) for v in obj)
+
+
+@from_json.register(dict)
+def from_json_dict(obj):
+    if len(obj) == 2 and 'left' in obj and 'right' in obj:
+        left, right = from_json((obj['left'],obj['right']))
+        return Interval[left, right]
+    return {k: from_json(v) for k, v in obj.items()}

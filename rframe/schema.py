@@ -494,7 +494,7 @@ class BaseSchema(BaseModel):
             indexes = indexes[0]
         return pd.DataFrame().reindex(columns=columns).set_index(indexes)
 
-    def to_pandas(self):
+    def dframe(self):
         index_fields = list(self.get_index_fields())
         if len(index_fields) == 1:
             index_fields = index_fields[0]

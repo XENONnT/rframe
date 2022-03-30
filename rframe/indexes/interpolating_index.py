@@ -2,6 +2,7 @@ import datetime
 from typing import Callable, Union
 
 import numpy as np
+from ..types import Interval
 from scipy.interpolate import interp1d
 
 from ..utils import singledispatch
@@ -96,3 +97,11 @@ class InterpolatingIndex(BaseIndex):
             return [new_document]
 
         return []
+
+    def label_options(self, query):
+        left = query.min(self.name)
+        right = query.max(self.name)
+        if left is None or right is None:
+            return []
+        iv_class = Interval[type(left)]
+        return [iv_class(left=left, right=right)]

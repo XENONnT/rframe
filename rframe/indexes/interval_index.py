@@ -23,45 +23,22 @@ class IntervalIndex(BaseIndex):
         super().__init__(**kwargs)
         self.closed = closed
 
-    def _to_pandas(self, label):
-        if self.field.type_ is TimeInterval:
-            if label is None:
-                label = 9e18
-            return pd.to_datetime(label)
-        if label is None:
-            label = float("inf")
-        return label
-
-    def to_pandas(self, label):
-        '''Convert a label to a pandas interval'''
+    def label_options(self, query):
+        '''Collect all valid intervals
+        '''
+        labels = query.unique(self.name)
+        if not labels:
+            return []
+        if isinstance(labels[0], dict):
+            labels = [self.field.type_(**label) for label in labels]
+        labels = sorted(labels, key=lambda x: x.left)
         
-        
-        if isinstance(label,pd.Interval):
-            return label
-
-        if isinstance(label, Mapping):
-            left = self._to_pandas(label["left"])
-            right = self._to_pandas(label["right"])
-
-        elif isinstance(label, Interval):
-            left = self._to_pandas(label.left)
-            right = self._to_pandas(label.right)
-
-        elif isinstance(label, Iterable) and len(label) == 2:
-            left = self._to_pandas(label[0])
-            right = self._to_pandas(label[1])
-        else:
-            raise TypeError(
-                f"{self.name} must be a Mapping,Interval"
-                f"or Iterable of length 2, got {type(label)} instead."
-            )
-
-        label = pd.Interval(left, right, closed=self.closed)
-        return label
-
-    def from_pandas(self, label):
-        if isinstance(label, pd.Interval):
-            type_ = type(label.left)
-            interval_class = Interval[type_]
-            label = interval_class(left=label.left, right=label.right)
-        return label
+        ivs = labels[:1]
+        for iv in labels[1:]:
+            # touching intervals can be combined
+            if iv.left == ivs[-1].right:
+                ivs[-1] = iv.__class__(left=ivs[-1].left,
+                                          right=iv.right)
+            else:
+                ivs.append(iv)
+        return ivs

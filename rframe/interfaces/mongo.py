@@ -124,7 +124,7 @@ try:
                 if len(docs) >= self.docs_per_label:
                     docs = self.index.reduce(docs, self.labels)
                     for doc in docs:
-                        yield doc
+                        yield from_mongo(doc)
                         collected += 1
                         if collected >= limit:
                             return
@@ -132,7 +132,7 @@ try:
             if len(docs) and collected<limit:
                 docs = self.index.reduce(docs, self.labels)
                 for doc in docs:
-                    yield doc
+                    yield from_mongo(doc)
                     collected += 1
                     if collected >= limit:
                         return
@@ -152,6 +152,9 @@ try:
                     
                 results[field] = [doc['first'] for doc in 
                                   self.collection.aggregate(pipeline, allowDiskUse=True)]
+
+            results = from_mongo(results)
+
             if len(fields) == 1:
                 return results[fields[0]]
             return results
@@ -172,6 +175,9 @@ try:
                     results[field] = next(self.collection.aggregate(pipeline, allowDiskUse=True))[field]
                 except (StopIteration, KeyError):
                     results[field] = None
+
+            results = from_mongo(results)
+
             if len(fields) == 1:
                 return results[fields[0]]
             return results
@@ -191,6 +197,8 @@ try:
                     results[field] = next(self.collection.aggregate(pipeline, allowDiskUse=True))[field]
                 except (StopIteration, KeyError):
                     results[field] = None
+
+            results = from_mongo(results)
 
             if len(fields) == 1:
                 return results[fields[0]]
@@ -687,5 +695,6 @@ def from_mongo_tuple(obj):
 
 @from_mongo.register(dict)
 def from_mongo_dict(obj):
+    if len(obj)==2 and 'left' in obj and 'right' in obj:
+        return Interval[obj['left'],obj['right']]
     return {k: from_mongo(v) for k, v in obj.items()}
-

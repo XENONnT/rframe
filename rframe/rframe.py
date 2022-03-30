@@ -6,7 +6,10 @@ from typing import Any, List, Tuple, Type, Union
 import pandas as pd
 from pydantic.typing import NoneType
 
+from .indexes import MultiIndex
+
 from .interfaces import get_interface
+from .interfaces.pandas import to_pandas
 from .schema import BaseSchema, InsertionError, UpdateError
 from .utils import camel_to_snake, singledispatchmethod
 
@@ -27,6 +30,7 @@ class RemoteFrame:
         self.schema = schema
         self._datasource = datasource
         self._labels = labels
+        self._index = None
 
     @classmethod
     def from_mongodb(cls, schema, url, db, collection, **kwargs):
@@ -174,18 +178,15 @@ class RemoteFrame:
         return succeeded, failed, errors
 
     def _recreate_index(self):
-        fields = list(self.schema.get_index_fields())
-        unique = self.unique(fields)
-        if isinstance(unique, dict):
-            values = []
-            for k,vs in unique.items():
-                index = self.schema.index_for(k)
-                values.append([index.to_pandas(vi) for vi in vs])
-            self._index =  pd.MultiIndex.from_product(values, names=fields)
+        index = self.schema.get_index()
+        query = self.schema.compile_query(self.datasource,
+                                          **self._labels)
+        label_options = to_pandas(index.label_options(query))
+
+        if isinstance(index, MultiIndex):
+            self._index =  pd.MultiIndex.from_product(label_options, names=index.names)
         else:
-            index = self.schema.index_for(fields[0])
-            unique = [index.to_pandas(vi) for vi in unique]
-            self._index = pd.Index(unique, name=fields[0])
+            self._index =  pd.Index(label_options, name=index.name)
         
     def __getitem__(self, index: Tuple[IndexLabel, ...]) -> "RemoteSeries":
         if isinstance(index, str) and index in self.columns:
@@ -204,7 +205,7 @@ class RemoteFrame:
     def __getattr__(self, name: str) -> "RemoteSeries":
         if name != "columns" and name in self.columns:
             return self[name]
-        raise AttributeError(name)
+        return super().__getattribute__(name)
 
     def __len__(self):
         return self.size

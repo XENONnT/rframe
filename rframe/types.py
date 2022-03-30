@@ -71,10 +71,22 @@ class Interval(BaseModel):
         return cls(left=left, right=right)
 
     def __class_getitem__(cls, type_):
+        if isinstance(type_, tuple):
+            left, right = type_
+            if isinstance(left, int):
+                return IntegerInterval(left=left, right=right)
+            else:
+                return TimeInterval(left=left, right=right)
+
+        if not isinstance(type_, type):
+            type_ = type(type_)
+
         if issubclass(type_, int):
             return IntegerInterval
+
         if issubclass(type_, datetime.datetime):
             return TimeInterval
+
         raise TypeError(type_)
         
     @root_validator
@@ -126,7 +138,7 @@ class Interval(BaseModel):
 
     def __len__(self):
         return self.right - self.left
-        
+
     def clone(self, left=None, right=None):
         return self.__class__(left=left or self.left,
                               right=right or self.right)

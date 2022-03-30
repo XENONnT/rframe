@@ -7,7 +7,7 @@ from numpy import isin
 from abc import ABC, abstractmethod
 
 from .utils import jsonable
-
+from .interfaces.json import from_json
 
 class BaseRestClient(ABC):
 
@@ -55,7 +55,9 @@ class RestClient(BaseRestClient):
         
         with logger.catch():
             r.raise_for_status()
-        return r.json()
+        data = r.json()
+        data = from_json(data)
+        return data
 
     def insert(self, doc):
         data = doc.json()
@@ -87,6 +89,9 @@ class RestClient(BaseRestClient):
         results = {field: data[field]['unique'] for field in fields}
         if len(fields) == 1:
             return results[fields[0]]
+
+        results = from_json(results) 
+
         return results
 
     def max(self, fields: List[str] = None, **labels):
@@ -102,6 +107,8 @@ class RestClient(BaseRestClient):
         data = r.json()
 
         results = {field: data[field]['max'] for field in fields}
+        results = from_json(results) 
+
         if len(fields) == 1:
             return results[fields[0]]
         return results
@@ -119,6 +126,7 @@ class RestClient(BaseRestClient):
         data = r.json()
 
         results = {field: data[field]['min'] for field in fields}
+        results = from_json(results) 
         if len(fields) == 1:
             return results[fields[0]]
         return results
@@ -149,7 +157,7 @@ class RestClient(BaseRestClient):
         with logger.catch():
             r.raise_for_status()
         data = r.json()
-
+        data = from_json(data) 
         if len(fields) == 1:
             return data[fields[0]]
         return data

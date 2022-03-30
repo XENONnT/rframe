@@ -73,15 +73,12 @@ class BaseIndex(FieldInfo):
             return tuple(self._validate_label(val) for val in label)
 
         return self._validate_label(label)
-
-    def to_pandas(self, label):
-        return label
-
-    def from_pandas(self, label):
-        return label
-
+        
     def reduce(self, docs, labels):
         return docs
+
+    def label_options(self, query):
+        return query.unique(self.name)
 
     def __repr__(self):
         type_ = self.field.type_ if self.field else "UNKNOWN"

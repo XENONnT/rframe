@@ -331,8 +331,7 @@ def from_pandas_dict(obj):
 @from_pandas.register(pd.Interval)
 def from_pandas_interval(obj):
     left, right = from_pandas(obj.left), from_pandas(obj.right)
-    type_ = Interval[type(left)]
-    return type_(left=left, right=right)
+    return Interval[left, right]
 
 @from_pandas.register(list)
 def from_pandas_list(obj):

@@ -24,7 +24,6 @@ class BaseDataQuery(ABC):
         if docs:
             yield docs
         
-
     def unique(self, fields: Union[str, List[str]]):
         raise NotImplementedError
     

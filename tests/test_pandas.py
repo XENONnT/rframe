@@ -23,13 +23,13 @@ class TestPandas(unittest.TestCase):
     @given(SimpleSchema.list_strategy())
     @settings(deadline=None)
     def test_simple_schema(self, docs: List[SimpleSchema]):
-        datasource = docs[0].to_pandas().head(0)
+        datasource = docs[0].dframe().head(0)
         SimpleSchema.test(self, datasource, docs)
        
     @given(SimpleMultiIndexSchema.list_strategy())
     @settings(deadline=None)
     def test_simple_multi_index(self, docs: List[SimpleMultiIndexSchema]):
-        datasource = docs[0].to_pandas().head(0)
+        datasource = docs[0].dframe().head(0)
         SimpleMultiIndexSchema.test(self, datasource, docs)
 
     @given(InterpolatingSchema.list_strategy())

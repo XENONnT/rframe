@@ -1,3 +1,4 @@
+from functools import singledispatch
 import fsspec
 import json
 import numpy as np
@@ -9,12 +10,15 @@ from loguru import logger
 
 from pydantic import BaseModel
 
-from ..types import Interval
+from .json import from_json, to_json
 
 from ..indexes import Index, InterpolatingIndex, IntervalIndex, MultiIndex
 from ..utils import jsonable, singledispatchmethod, hashable_doc, unhashable_doc
 
 from .base import BaseDataQuery, DatasourceInterface
+
+to_tinydb = to_json
+from_tinydb = from_json
 
 try:
     from tinydb import TinyDB, Query, where
@@ -70,7 +74,7 @@ try:
             if not isinstance(docs, list):
                 docs = [docs]
                 
-            return docs
+            return from_tinydb(docs)
 
     class TinyDBQuery(BaseDataQuery):
         def __init__(self, index, labels, table, selections) -> None:
