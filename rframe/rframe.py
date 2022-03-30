@@ -1,9 +1,11 @@
 """Main module."""
 
+import pandas as pd
+
 from datetime import datetime
 from typing import Any, List, Tuple, Type, Union
+from pandas.core.indexes.frozen import FrozenList
 
-import pandas as pd
 from pydantic.typing import NoneType
 
 from .indexes import MultiIndex
@@ -23,6 +25,7 @@ class RemoteFrame:
 
     schema: Type[BaseSchema]
     db: Any
+    df: pd.DataFrame
 
     _index = None
 
@@ -55,11 +58,16 @@ class RemoteFrame:
         return camel_to_snake(self.schema.__name__)
 
     @property
+    def index_names(self):
+        return FrozenList(self.schema.get_index_fields())
+
+    @property
     def columns(self):
         return pd.Index(list(self.schema.get_column_fields()))
 
     @property
     def index(self):
+        # FIXME: make a proxy object that only loads labels if accessed.
         if self._index is None:
             self._recreate_index()
         return self._index
@@ -123,7 +131,7 @@ class RemoteFrame:
         returns a pandas dataframe if all indexes are specified.
         Otherwise returns a RemoteFrame
         """
-        index_fields = self.index.names
+        index_fields = self.index_names
         labels = {name: lbl for name, lbl in zip(index_fields, args)}
         labels.update(kwargs)
 
@@ -136,7 +144,7 @@ class RemoteFrame:
                 merged[k] = v
 
         rf = RemoteFrame(self.schema, self.datasource, **merged)
-        if all([label in merged for label in self.index.names]):
+        if all([label in merged for label in self.index_names]):
             rf = rf.df
         if len(extra):
             rf = RemoteFrame(self.schema, rf, **extra)
@@ -145,7 +153,7 @@ class RemoteFrame:
 
     def set(self, *args: IndexLabel, **kwargs: IndexLabel) -> BaseSchema:
         """Insert data by index"""
-        labels = {name: lbl for name, lbl in zip(self.index.names, args)}
+        labels = {name: lbl for name, lbl in zip(self.index_names, args)}
         kwargs.update(labels)
         doc = self.schema(**kwargs)
         res = doc.save(self.datasource)
@@ -196,7 +204,7 @@ class RemoteFrame:
         raise KeyError(f"{index} is not a dataframe column.")
 
     def __call__(self, column: str, **index: IndexLabel) -> pd.DataFrame:
-        index = tuple(index.get(k, None) for k in self.index.names)
+        index = tuple(index.get(k, None) for k in self.index_names)
         return self.at[index, column]
 
     def __dir__(self) -> List[str]:
@@ -213,7 +221,7 @@ class RemoteFrame:
     def __repr__(self) -> str: # pragma: no cover
         return ( 
             f"{self.__class__.__name__}("
-            f"index={self.index.names},"
+            f"index={self.index_names},"
             f"columns={self.columns},"
             f"datasource={self._datasource},"
             f"selection={self._labels})"
