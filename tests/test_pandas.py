@@ -35,19 +35,19 @@ class TestPandas(unittest.TestCase):
     @given(InterpolatingSchema.list_strategy())
     @settings(deadline=None)
     def test_interpolated(self, docs: InterpolatingSchema):
-        datasource = docs[0].to_pandas().head(0)
+        datasource = docs[0].dframe().head(0)
         InterpolatingSchema.test(self, datasource, docs)
 
     @given(IntegerIntervalSchema.list_strategy())
     @settings(deadline=None)
     def test_integer_interval(self, docs: IntegerIntervalSchema):
-        datasource = docs[0].to_pandas().head(0)
+        datasource = docs[0].dframe().head(0)
         IntegerIntervalSchema.test(self, datasource, docs)
 
     @given(TimeIntervalSchema.list_strategy())
     @settings(deadline=None)
     def test_time_interval(self, docs: TimeIntervalSchema):
-        datasource = docs[0].to_pandas().head(0)
+        datasource = docs[0].dframe().head(0)
         TimeIntervalSchema.test(self, datasource, docs)
 
     def test_interface_from_url(self):
