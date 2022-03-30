@@ -326,8 +326,6 @@ except ImportError:
         def __init__(self) -> None:
             raise TypeError("Cannot use TinyDB interface. tindb not installed.")
 
-    logger.info("tinydb not found, cannot register TinDB interface.")
-
 
 def overlap_query(target, left, right):
     query = target.noop()
