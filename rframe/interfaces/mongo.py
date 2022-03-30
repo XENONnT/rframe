@@ -319,7 +319,7 @@ try:
                 labels = {index.name: labels}
             
             label = labels.get(index.name, None)
-            others = tuple(name for name in labels if name != index.name)
+            other_index_names = tuple(name for name in labels if name != index.name)
 
             if label is None:
                 return MongoAggregation(index, labels, self.source, [])
@@ -335,7 +335,7 @@ try:
                                                        numeric_fields=numeric_fields,
                                                        other_fields=other_fields,
                                                        extrapolate=index.can_extrapolate(labels),
-                                                       groupby=others)
+                                                       groupby=other_index_names)
 
             return MongoAggregation(index, labels, self.source, pipeline)
 
@@ -580,6 +580,7 @@ def mongo_interpolating_aggregation(name, values, numeric_fields=(), groupby=(),
         projection = {name: {'$literal': value}}
 
         for field in numeric_fields:
+            # numeric fields are interpolated linearly
             projection[field] = {'$cond': [{'$eq': [{'$type': f'$after{i}'}, 'missing']},
                                              f'$before{i}.{field}',
                                             {'$add': [
@@ -594,7 +595,17 @@ def mongo_interpolating_aggregation(name, values, numeric_fields=(), groupby=(),
                 ]}
 
         for field in other_fields:
-            projection[field] = f"$before{i}.{field}"
+            # non numeric fields match on nearest neighbor
+            projection[field] = {'$cond': [{'$eq': [{'$type': f'$after{i}'}, 'missing']}, 
+                                           f"$before{i}.{field}",
+                                           {'$cond': [{'$lte': [
+                                               {'$subtract': [{'$literal': value}, f'$before{i}.{name}']},
+                                               {'$subtract': [f'$after{i}.{name}', {'$literal': value}]}
+                                           ]},
+                                            f"$before{i}.{field}",
+                                            f"$after{i}.{field}",
+                                                      ]},
+                                ]}
         
         if extrapolate:
             subpipeline = []

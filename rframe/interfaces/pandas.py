@@ -7,6 +7,8 @@ from typing import Any, List, Union
 import numpy as np
 import pandas as pd
 
+from rframe.interpolation import interpolate_records
+
 from ..indexes import Index, InterpolatingIndex, IntervalIndex, MultiIndex
 from ..utils import singledispatchmethod
 from .base import BaseDataQuery, DatasourceInterface
@@ -49,7 +51,6 @@ class PandasBaseQuery(BaseDataQuery):
             limit = start + limit * self.index.DOCS_PER_LABEL
             df = df.iloc[start:limit]
         docs = df.to_dict(orient="records")
-        docs = self.index.reduce(docs, self.labels)
         logger.debug(f'Done. Found {len(docs)} documents.')
         docs = from_pandas(docs)
         return docs
@@ -156,30 +157,37 @@ class PandasInterpolationQuery(PandasBaseQuery):
     def apply_selection(self, df, limit=1):
         if self.label is None:
             return df
+
         if self.column in df.index.names:
             df = df.reset_index()
 
         if self.column not in df.columns:
             raise KeyError(self.column)
+        labels = self.label if isinstance(self.label, list) else [self.label]
 
         rows = []
         # select all values before requested values
         idx_column = df[self.column]
-        before = df[idx_column <= self.label]
-        if len(before):
-            # if there are values after `value`, we find the closest one
-            before = before.sort_values(self.column, ascending=False).head(limit)
-            rows.append(before)
+        for label in labels:
+            before = df[idx_column <= label]
+            if len(before):
+                # if there are values after `value`, we find the closest one
+                before = before.sort_values(self.column, ascending=False).head(limit)
+                rows.append(before)
 
-        # select all values after requested values
-        after = df[idx_column > self.label]
-        if len(after):
-            # same as before
-            after = after.sort_values(self.column, ascending=True).head(limit)
-            rows.append(after)
+            # select all values after requested values
+            after = df[idx_column > label]
+            if len(after):
+                # same as before
+                after = after.sort_values(self.column, ascending=True).head(limit)
+                rows.append(after)
         if not rows:
             return df.head(0)
-        return pd.concat(rows)
+        records = pd.concat(rows).to_dict(orient='records')
+        
+        records = interpolate_records(self.column, labels, records,
+                                     extrapolate=self.index.can_extrapolate(self.labels))
+        return pd.DataFrame(records)
 
 
 class PandasMultiQuery(PandasBaseQuery):

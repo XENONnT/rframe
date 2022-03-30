@@ -93,7 +93,7 @@ try:
             
             docs = self.apply_selection(self.table)
 
-            docs = self.index.reduce(docs, self.labels)
+            # docs = self.index.reduce(docs, self.labels)
 
             if not docs:
                 return docs

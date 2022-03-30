@@ -10,10 +10,10 @@ from typing import Any, List, Union
 import numpy as np
 import pandas as pd
 
+from .base import BaseDataQuery, DatasourceInterface
 from ..indexes import Index, InterpolatingIndex, IntervalIndex, MultiIndex
 from ..utils import jsonable, singledispatchmethod, hashable_doc, unhashable_doc
-from .base import BaseDataQuery, DatasourceInterface
-
+from ..interpolation import interpolate, interpolate_records
 
 class JsonBaseQuery(BaseDataQuery):
     def __init__(self, index, data, field: str, label: Any) -> None:
@@ -48,11 +48,11 @@ class JsonBaseQuery(BaseDataQuery):
         docs = self.apply_selection(data)
        
         if limit is not None:
-            start = skip * self.index.DOCS_PER_LABEL if skip is not None else 0
-            limit = start + limit * self.index.DOCS_PER_LABEL
+            start = skip if skip is not None else 0
+            limit = start + limit
             docs = docs[start:limit]
         
-        docs = self.index.reduce(docs, self.labels)
+        # docs = self.index.reduce(docs, self.labels)
         logger.debug(f'Done. Found {len(docs)} documents.')
         return docs
 
@@ -151,28 +151,43 @@ class JsonIntervalQuery(JsonBaseQuery):
         
 
 class JsonInterpolationQuery(JsonBaseQuery):
-    def apply_selection(self, records, limit=1):
-        if self.label is None:
+    def apply_selection(self, records):
+                
+        label = self.labels.get(self.field, None)
+        
+        if label is None:
             return records
 
         if not all([self.field in record for record in records]):
             raise KeyError(self.field)
 
-        field_values = np.array([record[self.field] for record in records])
-        before_mask = (field_values <= self.label)
-        before_values = field_values[before_mask]
+        label = jsonable(label)
 
-        after_mask = (field_values > self.label)
-        after_values = field_values[after_mask]
+        if not isinstance(label, list):
+            label = [label]
+              
+        records = interpolate_records(self.field,
+                                      label,
+                                      records, 
+                                    #   groupby=other_index_names, 
+                                      extrapolate=self.index.can_extrapolate(self.labels))
+        return records
 
-        before_idxs = np.argsort(np.abs(before_values) - self.label)[:limit]
-        before_records = [records[i] for i in np.flatnonzero(before_mask)]
-        before_values = [before_records[i] for i in before_idxs]
+        # field_values = np.array([record[self.field] for record in records])
+        # before_mask = (field_values <= self.label)
+        # before_values = field_values[before_mask]
 
-        after_idxs = np.argsort(np.abs(after_values) - self.label)[:limit]
-        after_records = [records[i] for i in np.flatnonzero(after_mask)]
-        after_values = [after_records[i] for i in after_idxs]
-        return before_values + after_values
+        # after_mask = (field_values > self.label)
+        # after_values = field_values[after_mask]
+
+        # before_idx = np.argsort(np.abs(before_values) - self.label)[0]
+        # before_records = [records[i] for i in np.flatnonzero(before_mask)]
+        # before_value = before_records[before_idx]
+
+        # after_idxs = np.argsort(np.abs(after_values) - self.label)[0]
+        # after_records = [records[i] for i in np.flatnonzero(after_mask)]
+        # after_values = [after_records[i] for i in after_idxs]
+        # return before_values + after_values
 
 
 class JsonMultiQuery(JsonBaseQuery):
@@ -248,7 +263,12 @@ class JsonInterface(DatasourceInterface):
 
     @compile_query.register(InterpolatingIndex)
     def interpolating_query(self, index, label):
-        label = jsonable(label)
+
+        # if isinstance(labels, dict) and index.name in labels:
+        #     labels = dict(labels)
+        # else:
+        #     labels = {index.name: labels}
+
         return JsonInterpolationQuery(index, self.source, index.name, label)
 
     @compile_query.register(list)

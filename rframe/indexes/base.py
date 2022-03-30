@@ -83,6 +83,9 @@ class BaseIndex(FieldInfo):
     def reduce(self, docs, labels):
         return docs
 
+    def label_range(self, query):
+        return query.unique(self.name)
+
     def __repr__(self):
         type_ = self.field.type_ if self.field else "UNKNOWN"
         return f"{self.__class__.__name__}(name={self.name},type={type_})"
