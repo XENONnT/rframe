@@ -22,9 +22,8 @@ packages = [
 [tool.poetry.dependencies]
 python = ">=3.8,<3.11"
 pydantic = "^1.9.0"
-pandas = "^1.4.0"
+pandas = "*"
 toolz = "^0.11.2"
-scipy = "^1.8.0"
 requests = "^2.27.1"
 makefun = "^1.13.1"
 loguru = "^0.6.0"

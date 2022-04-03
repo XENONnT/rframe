@@ -1,10 +1,9 @@
 import datetime
+import numpy as np
+
 from typing import Callable, Union
 
-import numpy as np
 from ..types import Interval
-from scipy.interpolate import interp1d
-
 from ..utils import singledispatch
 from .base import BaseIndex
 
@@ -23,10 +22,7 @@ def interpolater(x, xs, ys, kind="linear"):
 @interpolater.register(int)
 def interpolate_number(x, xs, ys, kind="linear"):
     if isinstance(ys[0], (float, int)):
-        func = interp1d(
-            xs, ys, fill_value=(ys[0], ys[-1]), bounds_error=False, kind=kind
-        )
-        return func(x).item()
+        return np.interp(x, xs, ys)
     return nn_interpolate(x, xs, ys)
 
 
