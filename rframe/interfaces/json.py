@@ -1,4 +1,3 @@
-
 from functools import singledispatch
 import json
 import toolz
@@ -34,8 +33,8 @@ class JsonBaseQuery(BaseDataQuery):
     def apply_selection(self, records):
         return list(filter(self.filter, records))
 
-    def execute(self, limit: int = None, skip: int = None, sort = None):
-        logger.debug('Applying pandas dataframe selection')
+    def execute(self, limit: int = None, skip: int = None, sort=None):
+        logger.debug("Applying pandas dataframe selection")
 
         if not len(self.data):
             return []
@@ -48,21 +47,21 @@ class JsonBaseQuery(BaseDataQuery):
             data = sorted(data, key=lambda d: tuple(d[s] for s in sort))
             data = [unhashable_doc(d) for d in data]
         docs = self.apply_selection(data)
-       
+
         if limit is not None:
             start = skip * self.index.DOCS_PER_LABEL if skip is not None else 0
             limit = start + limit * self.index.DOCS_PER_LABEL
             docs = docs[start:limit]
-        
+
         docs = self.index.reduce(docs, self.labels)
-        
+
         docs = from_json(docs)
 
-        logger.debug(f'Done. Found {len(docs)} documents.')
+        logger.debug(f"Done. Found {len(docs)} documents.")
 
         return docs
 
-    def min(self, fields: Union[str,List[str]]):
+    def min(self, fields: Union[str, List[str]]):
         if isinstance(fields, str):
             fields = [fields]
         docs = self.apply_selection(self.data)
@@ -75,7 +74,7 @@ class JsonBaseQuery(BaseDataQuery):
             return results[fields[0]]
         return results
 
-    def max(self, fields: Union[str,List[str]]):
+    def max(self, fields: Union[str, List[str]]):
         if isinstance(fields, str):
             fields = [fields]
         docs = self.apply_selection(self.data)
@@ -87,8 +86,8 @@ class JsonBaseQuery(BaseDataQuery):
         if len(fields) == 1:
             return results[fields[0]]
         return results
-    
-    def unique(self, fields: Union[str,List[str]]):
+
+    def unique(self, fields: Union[str, List[str]]):
         if isinstance(fields, str):
             fields = [fields]
         docs = self.apply_selection(self.data)
@@ -109,11 +108,10 @@ class JsonBaseQuery(BaseDataQuery):
 
 
 class JsonSimpleQuery(JsonBaseQuery):
-
     def filter(self, record: dict):
         if self.label is None:
             return True
-        
+
         if self.field not in record:
             raise KeyError(self.field)
 
@@ -132,11 +130,10 @@ class JsonSimpleQuery(JsonBaseQuery):
 
 
 class JsonIntervalQuery(JsonBaseQuery):
-    
     def filter(self, record: dict):
         if self.label is None:
             return record
-        
+
         if self.field not in record:
             raise KeyError(self.field)
 
@@ -154,9 +151,10 @@ class JsonIntervalQuery(JsonBaseQuery):
 
         left, right = to_json(left), to_json(right)
 
-        return (record[self.field]['left'] < right) and \
-               (record[self.field]['right'] > left)
-        
+        return (record[self.field]["left"] < right) and (
+            record[self.field]["right"] > left
+        )
+
 
 class JsonInterpolationQuery(JsonBaseQuery):
     def apply_selection(self, records, limit=1):
@@ -167,10 +165,10 @@ class JsonInterpolationQuery(JsonBaseQuery):
             raise KeyError(self.field)
 
         field_values = np.array([record[self.field] for record in records])
-        before_mask = (field_values <= self.label)
+        before_mask = field_values <= self.label
         before_values = field_values[before_mask]
 
-        after_mask = (field_values > self.label)
+        after_mask = field_values > self.label
         after_values = field_values[after_mask]
 
         before_idxs = np.argsort(np.abs(before_values) - self.label)[:limit]
@@ -204,7 +202,7 @@ class JsonMultiQuery(JsonBaseQuery):
                 if not others:
                     records = query.apply_selection(records)
                     continue
-                
+
                 for _, docs in toolz.groupby(others, records):
                     selection = query.apply_selection(docs).reset_index()
                     selections.extend(selection)
@@ -213,7 +211,7 @@ class JsonMultiQuery(JsonBaseQuery):
                     records = selections
                 else:
                     records = []
-            
+
             else:
                 records = query.apply_selection(records)
         return records
@@ -221,13 +219,12 @@ class JsonMultiQuery(JsonBaseQuery):
 
 @DatasourceInterface.register_interface(list)
 class JsonInterface(DatasourceInterface):
-        
     @classmethod
-    def from_url(cls, url: str, jsonpath='', **kwargs):
+    def from_url(cls, url: str, jsonpath="", **kwargs):
         if url.endswith(".json"):
             with fsspec.open(url, **kwargs) as f:
                 data = json.load(f)
-                for p in jsonpath.split('.'):
+                for p in jsonpath.split("."):
                     data = data[p] if p else data
                 if not isinstance(data, list):
                     raise ValueError("JSON file must contain a list of documents")
@@ -266,9 +263,7 @@ class JsonInterface(DatasourceInterface):
         if not isinstance(index, MultiIndex):
             index = MultiIndex(*index)
 
-        queries = [
-            self.compile_query(idx, labels[idx.name]) for idx in index.indexes
-        ]
+        queries = [self.compile_query(idx, labels[idx.name]) for idx in index.indexes]
 
         return JsonMultiQuery(index, self.source, queries)
 
@@ -313,6 +308,7 @@ def from_json_str(obj):
         return obj
     return parse_datetime(obj)
 
+
 @from_json.register(list)
 def from_json_list(obj):
     return [from_json(v) for v in obj]
@@ -325,7 +321,7 @@ def from_json_tuple(obj):
 
 @from_json.register(dict)
 def from_json_dict(obj):
-    if len(obj) == 2 and 'left' in obj and 'right' in obj:
-        left, right = from_json((obj['left'],obj['right']))
+    if len(obj) == 2 and "left" in obj and "right" in obj:
+        left, right = from_json((obj["left"], obj["right"]))
         return Interval[left, right]
     return {k: from_json(v) for k, v in obj.items()}

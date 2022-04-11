@@ -1,21 +1,18 @@
+
 import re
 import json
 import math
 import inspect
+from typing import overload
 import jsonschema
 
 from numbers import Integral, Number, Real
 from functools import partial, singledispatch
 from pydantic import BaseModel
-from multipledispatch import dispatch
 from pydantic.json import ENCODERS_BY_TYPE
 from collections.abc import Iterable, Mapping
 
 from .types import Interval
-
-
-dispatch_namespace = {}
-dispatch = partial(dispatch, namespace=dispatch_namespace)
 
 
 def camel_to_snake(name):
@@ -34,13 +31,14 @@ def get_all_subclasses(type_):
         subclasses.extend(get_all_subclasses(subclass))
     return subclasses
 
+
 def filter_kwargs(func, kwargs):
     """Filter out keyword arguments that
-        are not in the call signature of func
-        and return filtered kwargs dictionary
+    are not in the call signature of func
+    and return filtered kwargs dictionary
     """
     params = inspect.signature(func).parameters
-    if any([str(p).startswith('**') for p in params.values()]):
+    if any([str(p).startswith("**") for p in params.values()]):
         # if func accepts wildcard kwargs, return all
         return kwargs
     return {k: v for k, v in kwargs.items() if k in params}
@@ -71,7 +69,7 @@ def jsonable(obj):
 
     if isinstance(obj, Integral):
         return int(obj)
-    
+
     if isinstance(obj, slice):
         return slice(jsonable(obj.start), jsonable(obj.stop), jsonable(obj.step))
 
@@ -79,35 +77,35 @@ def jsonable(obj):
 
 
 def as_bson_schema(schema, resolver=None):
-    
+
     if not isinstance(schema, dict):
         return schema
 
     if resolver is None:
         resolver = jsonschema.RefResolver.from_schema(schema)
-        
-    if '$ref' in schema:
-        return as_bson_schema(resolver.resolve(schema['$ref'])[1],
-                           resolver=resolver)
+
+    if "$ref" in schema:
+        return as_bson_schema(resolver.resolve(schema["$ref"])[1], resolver=resolver)
     new = {}
-    
+
     for k, v in schema.items():
-        if k in  ['definitions', 'format', 'default']:
+        if k in ["definitions", "format", "default"]:
             continue
-        if k == 'type':
-            k = 'bsonType'
-        if v == 'integer':
-            v = 'int'
-        elif v == 'boolean':
-            v = 'bool'
-        elif v == 'string' and schema.get('format', '') == 'date-time':
-            v = 'date'
+        if k == "type":
+            k = "bsonType"
+        if v == "integer":
+            v = "int"
+        elif v == "boolean":
+            v = "bool"
+        elif v == "string" and schema.get("format", "") == "date-time":
+            v = "date"
         elif isinstance(v, dict):
             v = as_bson_schema(v, resolver=resolver)
         elif isinstance(v, list):
             v = [as_bson_schema(vi, resolver=resolver) for vi in v]
         new[k] = v
     return new
+
 
 """
 Copied from python 3.8 functools for 3.7 support
@@ -219,18 +217,22 @@ class FrozenDict(Mapping):
         return self._hash
 
     def __lt__(self, other):
-        if isinstance(other, Mapping) and self.keys()==other.keys():
+        if isinstance(other, Mapping) and self.keys() == other.keys():
             return tuple(self.values()) < tuple(other.values())
-        raise TypeError(f'< not supported between instances of {type(self)} and {type(other)}')
+        raise TypeError(
+            f"< not supported between instances of {type(self)} and {type(other)}"
+        )
 
     def __gt__(self, other):
-        if isinstance(other, Mapping) and self.keys()==other.keys():
+        if isinstance(other, Mapping) and self.keys() == other.keys():
             return tuple(self.values()) > tuple(other.values())
-        raise TypeError(f'> not supported between instances of {type(self)} and {type(other)}')
+        raise TypeError(
+            f"> not supported between instances of {type(self)} and {type(other)}"
+        )
 
     def __le__(self, other):
         return self < other or self == other
-    
+
     def __ge__(self, other):
         return self > other or self == other
 
@@ -249,40 +251,3 @@ def unhashable_doc(doc):
     return doc
 
 
-@dispatch(object, object)
-def are_equal(x, y):
-    if x is None and y is None:
-        return True
-    return x == y
-
-@dispatch(str, str)
-def are_equal(x, y):
-    return x == y
-
-@dispatch(Number, Number)
-def are_equal(x, y):
-    if math.isnan(x) and math.isnan(y):
-        return True
-    return math.isclose(x,y)
-
-
-@dispatch(Iterable, Iterable)
-def are_equal(x, y):
-    if len(x) != len(y):
-        return False
-    return all([are_equal(xi, yi) for xi, yi in zip(x, y)])
-
-
-@dispatch(Mapping, Mapping)
-def are_equal(x, y):
-    if len(x) != len(y):
-        return False
-    for k, v in x.items():
-        if k not in y or not are_equal(v, y[k]):
-            return False
-    return True
-
-
-@dispatch(Interval, Interval)
-def are_equal(x, y):
-    return are_equal(x.left, y.left) and are_equal(x.right, y.right)

@@ -16,15 +16,17 @@ class RestQuery(BaseDataQuery):
         self.params = params if params is not None else {}
 
     def execute(self, limit: int = None, skip: int = None, sort=None):
-        logger.debug(f'Executing rest api query with skip={skip}, sort={sort} and limit={limit}')
+        logger.debug(
+            f"Executing rest api query with skip={skip}, sort={sort} and limit={limit}"
+        )
         return self.client.query(limit=limit, skip=skip, sort=sort, **self.params)
 
     def unique(self, fields: Union[str, List[str]]):
         return self.client.unique(fields, **self.params)
-    
+
     def max(self, fields: Union[str, List[str]]):
         return self.client.max(fields, **self.params)
-    
+
     def min(self, fields: Union[str, List[str]]):
         return self.client.min(fields, **self.params)
 
@@ -46,18 +48,17 @@ def serializable_interval(interval):
         left, right = interval.left, interval.right
     else:
         left = right = interval
-    
+
     if left is None and right is None:
         return None
 
-    interval = {'left': left, 'right': right}
+    interval = {"left": left, "right": right}
 
     return interval
 
 
 @DatasourceInterface.register_interface(BaseRestClient)
 class RestInterface(DatasourceInterface):
-
     @classmethod
     def from_url(cls, url: str, headers=None, **kwargs):
         if url.startswith("http://") or url.startswith("https://"):
@@ -74,7 +75,7 @@ class RestInterface(DatasourceInterface):
 
     @compile_query.register(InterpolatingIndex)
     @compile_query.register(Index)
-    def simple_query(self, index: Union[Index,InterpolatingIndex], label):
+    def simple_query(self, index: Union[Index, InterpolatingIndex], label):
         return RestQuery(self.source, {index.name: label})
 
     @compile_query.register(IntervalIndex)
@@ -89,7 +90,7 @@ class RestInterface(DatasourceInterface):
         if isinstance(indexes, MultiIndex):
             indexes = indexes.indexes
             labels = labels.values()
-        
+
         params = {}
         for idx, label in zip(indexes, labels):
             query = self.compile_query(idx, label)
@@ -99,11 +100,11 @@ class RestInterface(DatasourceInterface):
         return RestQuery(self.source, params)
 
     def insert(self, doc):
-        logger.debug(f'REST api backend inserting document {doc}')
+        logger.debug(f"REST api backend inserting document {doc}")
         return self.source.insert(doc)
 
     update = insert
 
     def delete(self, doc):
-        logger.debug(f'REST api backend deleting document {doc}')
+        logger.debug(f"REST api backend deleting document {doc}")
         return self.source.delete(doc)

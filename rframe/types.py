@@ -1,15 +1,15 @@
 import datetime
-from typing import ClassVar, Literal, Mapping, TypeVar
+from typing import ClassVar, Literal, Mapping, Optional, TypeVar, Union
 
 import pydantic
 from pydantic import BaseModel, root_validator, ValidationError
 
 
-LabelType = TypeVar("LabelType", int, str, datetime.datetime)
+LabelType = Union[int, str, datetime.datetime]
 
 # allow up to 8 byte integers
 MIN_INTEGER = 0
-MAX_INTEGER = int(2**63 -1)
+MAX_INTEGER = int(2**63 - 1)
 MIN_INTEGER_DELTA = 1
 
 # Must fit in 64 bit uint with ns resolution
@@ -17,8 +17,9 @@ MIN_DATETIME = datetime.datetime(1677, 9, 22, 0, 0)
 MAX_DATETIME = datetime.datetime(2232, 1, 1, 0, 0)
 
 # Will be truncated by mongodb date type
-MIN_TIMEDELTA = datetime.timedelta(microseconds=1000) 
+MIN_TIMEDELTA = datetime.timedelta(microseconds=1000)
 MAX_TIMEDELTA = datetime.timedelta(days=106751)
+
 
 class Interval(BaseModel):
     class Config:
@@ -30,7 +31,7 @@ class Interval(BaseModel):
     _resolution: ClassVar = None
 
     left: LabelType
-    right: LabelType = None
+    right: Optional[LabelType] = None
     # closed: Literal['left','right','both'] = 'right'
 
     @classmethod
@@ -40,13 +41,13 @@ class Interval(BaseModel):
     @classmethod
     def _validate_boundary(cls, v):
         if v is None:
-            raise TypeError('Interval boundary cannot be None.')
+            raise TypeError("Interval boundary cannot be None.")
 
         if v < cls._min:
-            raise ValueError(f'{cls} boundary must be larger than {cls._min}.')
+            raise ValueError(f"{cls} boundary must be larger than {cls._min}.")
 
         if v > cls._max:
-            raise ValueError(f'{cls} boundary must be less than {cls._max}.')
+            raise ValueError(f"{cls} boundary must be less than {cls._max}.")
 
     @classmethod
     def validate_field(cls, v, field):
@@ -67,7 +68,7 @@ class Interval(BaseModel):
 
         if right is None:
             right = cls._max
-        
+
         return cls(left=left, right=right)
 
     def __class_getitem__(cls, type_):
@@ -88,50 +89,60 @@ class Interval(BaseModel):
             return TimeInterval
 
         raise TypeError(type_)
-        
+
     @root_validator
     def check_non_zero_length(cls, values):
-        left, right = values.get('left'), values.get('right')
-        
+        left, right = values.get("left"), values.get("right")
+
         cls._validate_boundary(left)
-        
+
         cls._validate_boundary(right)
 
         if left > right:
-            raise ValueError('Interval left must be less than right.')
-            #FIXME: maybe  left, right = right, left
+            raise ValueError("Interval left must be less than right.")
+            # FIXME: maybe  left, right = right, left
 
-        if (right - left ) < cls._resolution:
+        if (right - left) < cls._resolution:
             left = left - cls._resolution
 
-        values['left'] = left
-        values['right'] = right
+        values["left"] = left
+        values["right"] = right
 
         return values
 
     def overlaps(self, other):
         return self.left < other.right and self.right > other.left
 
-    def __lt__(self, other: 'Interval'):
+    def __lt__(self, other: "Interval"):
+        if not isinstance(other, self.__class__):
+            raise NotImplementedError
+
         if self.right is None:
             return False
         return self.right < other.left
 
-    def __le__(self, other: 'Interval'):
+    def __le__(self, other: "Interval"):
+        if not isinstance(other, self.__class__):
+            raise NotImplementedError
         if self.right is None:
             return False
         return self.right <= other.left
 
-    def __eq__(self, other: 'Interval'):
-        return (self.left == other.left) and \
-                (self.right == other.right)
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        return (self.left == other.left) and (self.right == other.right)
 
-    def __gt__(self, other: 'Interval'):
+    def __gt__(self, other: "Interval"):
+        if not isinstance(other, self.__class__):
+            raise NotImplementedError
         if other.right is None:
             return False
         return self.left > other.right
 
-    def __ge__(self, other: 'Interval'):
+    def __ge__(self, other: "Interval"):
+        if not isinstance(other, self.__class__):
+            raise NotImplementedError
         if other.right is None:
             return False
         return self.left >= other.right
@@ -140,14 +151,15 @@ class Interval(BaseModel):
         return self.right - self.left
 
     def clone(self, left=None, right=None):
-        return self.__class__(left=left or self.left,
-                              right=right or self.right)
+        return self.__class__(left=left or self.left, right=right or self.right)
+
+
 class IntegerInterval(Interval):
     _resolution = 1
     _min = MIN_INTEGER
     _max = MAX_INTEGER
 
-    left: int = pydantic.Field(ge=MIN_INTEGER, lt=MAX_INTEGER-_resolution)
+    left: int = pydantic.Field(ge=MIN_INTEGER, lt=MAX_INTEGER - _resolution)
     right: int = pydantic.Field(default=MAX_INTEGER, ge=_resolution, lt=MAX_INTEGER)
 
 
@@ -158,4 +170,3 @@ class TimeInterval(Interval):
 
     left: datetime.datetime
     right: datetime.datetime = MAX_DATETIME
-

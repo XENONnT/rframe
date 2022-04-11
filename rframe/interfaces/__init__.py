@@ -11,7 +11,7 @@ try:
     from .mongo import MongoInterface
 except ImportError:
     pass
-    
+
 try:
     from .tinydb import TinyDBInterface
 except ImportError:

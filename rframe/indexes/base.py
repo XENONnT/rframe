@@ -12,7 +12,7 @@ from rframe.utils import singledispatchmethod
 
 class BaseIndex(FieldInfo):
     DOCS_PER_LABEL = 1
-    
+
     __slots__ = FieldInfo.__slots__ + ("name", "schema", "field", "nullable", "unique")
 
     def __init__(self, default: Any = Undefined, **kwargs: Any) -> None:
@@ -30,20 +30,19 @@ class BaseIndex(FieldInfo):
 
     @property
     def names(self):
-        '''returns a list of names
+        """returns a list of names
         for compatibility with multi-index
-        '''
+        """
         return [self.name]
 
     def _validate_label(self, label):
-        '''Perform label validation
-        '''
+        """Perform label validation"""
         if label is None:
             return label
-            
+
         if isinstance(label, pd.Timestamp):
             label = label.to_pydatetime()
-        label, error = self.field.validate(label, {}, loc="LabelType")
+        label, error = self.field.validate(label, {}, loc=self.name)
         if error:
             raise ValidationError([error], self.schema)
         if isinstance(label, BaseModel):
@@ -73,7 +72,7 @@ class BaseIndex(FieldInfo):
             return tuple(self._validate_label(val) for val in label)
 
         return self._validate_label(label)
-        
+
     def reduce(self, docs, labels):
         return docs
 
