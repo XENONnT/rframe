@@ -45,7 +45,7 @@ class TestPandas(unittest.TestCase):
         IntegerIntervalSchema.test(self, datasource, docs)
 
     @given(TimeIntervalSchema.list_strategy())
-    @settings(deadline=None)
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     def test_time_interval(self, docs: TimeIntervalSchema):
         datasource = docs[0].dframe().head(0)
         TimeIntervalSchema.test(self, datasource, docs)
