@@ -1,16 +1,15 @@
 from abc import ABC, abstractmethod
-from typing import List, Union
+from typing import Dict, List, Union
 from rframe import interfaces
 from loguru import logger
 from ..utils import filter_kwargs
 
 
 class BaseDataQuery(ABC):
-
     @abstractmethod
-    def execute(self, limit=None, skip=None, sort=None): # pragma: no cover
+    def execute(self, limit=None, skip=None, sort=None):  # pragma: no cover
         pass
-    
+
     def iter(self, limit=None, skip=None, sort=None):
         yield from self.execute(limit=limit, skip=skip, sort=sort)
 
@@ -23,22 +22,22 @@ class BaseDataQuery(ABC):
                 docs = []
         if docs:
             yield docs
-        
+
     def unique(self, fields: Union[str, List[str]]):
         raise NotImplementedError
-    
+
     def max(self, fields: Union[str, List[str]]):
         raise NotImplementedError
-    
+
     def min(self, fields: Union[str, List[str]]):
         raise NotImplementedError
-    
+
     def count(self):
         raise NotImplementedError
 
 
 class DatasourceInterface(ABC):
-    _INTERFACES = {}
+    _INTERFACES: Dict[str,'DatasourceInterface'] = {}
 
     def __init__(self, source) -> None:
         self.source = source
@@ -62,27 +61,28 @@ class DatasourceInterface(ABC):
 
     @classmethod
     def from_source(cls, source, *args, **kwargs):
-        logger.debug(f'Looking for interface for datasource: {source}, '
-                     f'with kwargs: {kwargs}')
+        logger.debug(
+            f"Looking for interface for datasource: {source}, " f"with kwargs: {kwargs}"
+        )
 
         if isinstance(source, str):
             for klass in cls._INTERFACES.values():
                 try:
                     filtered_kwargs = filter_kwargs(klass.from_url, kwargs)
                     interface = klass.from_url(source, *args, **filtered_kwargs)
-                    logger.info(f'Found interface {klass}.')
+                    logger.info(f"Found interface {klass}.")
                     break
                 except NotImplementedError:
                     pass
             else:
                 raise ValueError(f"No interface found for source {source}")
-            
+
             return interface
-  
+
         for type_ in type(source).mro():
             if type_ in cls._INTERFACES:
                 interface_class = cls._INTERFACES[type_]
-                logger.info(f'Found interface {interface_class}.')
+                logger.info(f"Found interface {interface_class}.")
                 filtered_kwargs = filter_kwargs(interface_class, kwargs)
                 return interface_class(source, *args, **filtered_kwargs)
 
@@ -91,13 +91,13 @@ class DatasourceInterface(ABC):
         )
 
     @classmethod
-    def from_url(cls, url: str, *args, **kwargs): 
+    def from_url(cls, url: str, *args, **kwargs):
         raise NotImplementedError
 
     @abstractmethod
     def compile_query(self, index, label):
         pass
-    
+
     def insert(self, doc):
         raise NotImplementedError
 
@@ -112,6 +112,6 @@ class DatasourceInterface(ABC):
 
     def delete(self, doc):
         raise NotImplementedError
-    
+
     def initdb(self, schema):
         raise NotImplementedError

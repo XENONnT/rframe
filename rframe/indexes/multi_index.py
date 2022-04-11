@@ -17,7 +17,7 @@ class MultiIndex(BaseIndex):
             if index.name in ["", "index"]:
                 index.name = f"index_{i}"
         self._indexes = indexes
-        
+
     @property
     def DOCS_PER_LABEL(self):
         ndocs = 1

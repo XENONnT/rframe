@@ -28,8 +28,8 @@ requests = "^2.27.1"
 makefun = "^1.13.1"
 loguru = "^0.6.0"
 jsonschema = "^4.4.0"
-multipledispatch = "^0.6.0"
 fsspec = "^2022.2.0"
+plum-dispatch = "^1.5.9"
 
 [tool.poetry.dev-dependencies]
 bumpversion = "*"
@@ -51,6 +51,8 @@ fastapi = "^0.75.0"
 coveralls = "^3.3.1"
 tinydb = "^4.7.0"
 pytest-cov = "^3.0.0"
+rstcheck = "^3.3.1"
+mypy = "^0.942"
 
 [tool.poetry.scripts]
 rframe = 'rframe.cli:main'
@@ -70,13 +72,58 @@ from = {format = "poetry", path = "pyproject.toml"}
 to = {format = "setuppy", path = "setup.py"}
 
 [tool.poe.tasks]
-test   = "pytest --cov=rframe"
-format = "black ."
-clean  = """
+
+  [tool.poe.tasks.format]
+  help = "Run black on the code base"
+  cmd  = "black ."
+
+  [tool.poe.tasks.clean]
+  help = "Remove generated files"
+  cmd  = """
+    # multiline commands including comments work too!
     rm -rf .coverage
-        .mypy_cache
-        .pytest_cache
-        dist
-        ./**/__pycache__
-    """
-lint   = "pylint rframe"
+           .mypy_cache
+           .pytest_cache
+           ./**/__pycache__
+           dist
+           htmlcov
+           ./tests/fixtures/simple_project/venv
+           ./tests/fixtures/venv_project/myvenv
+           ./tests/temp
+  """
+
+  [tool.poe.tasks.test]
+  help = "Run unit and feature tests"
+  cmd  = "pytest --cov=rframe"
+
+  [tool.poe.tasks.test-quick]
+  help = "Run unit and feature tests, excluding slow ones"
+  cmd  = "pytest --cov=rframe -m \"not slow\""
+
+  [tool.poe.tasks.types]
+  help = "Run the type checker"
+  cmd  = "mypy rframe --ignore-missing-imports --install-types"
+
+  [tool.poe.tasks.lint]
+  help = "Run the linter"
+  cmd  = "pylint rframe"
+
+  [tool.poe.tasks.style]
+  help = "Validate code style"
+  cmd  = "black . --check --diff"
+
+  [tool.poe.tasks.check-docs]
+  help = "Validate rst syntax in the docs"
+  cmd  = "rstcheck README.rst"
+
+  [tool.poe.tasks.check]
+  help     = "Run all checks on the code base"
+  sequence = ["check-docs", "style", "types", "lint", "test"]
+
+  [tool.poe.tasks.bump]
+  help = "Bump version"
+  cmd = "bump2version"
+    [[tool.poe.tasks.bump.args]]
+    name = "version"
+    help = "major/minor/patch or explicit version"
+    default = "patch"

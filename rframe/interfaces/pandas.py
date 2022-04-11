@@ -2,7 +2,7 @@ from functools import singledispatch
 import numbers
 from loguru import logger
 from datetime import datetime
-from typing import Any, List, Union
+from typing import Any, Dict, List, Union
 
 import numpy as np
 import pandas as pd
@@ -19,7 +19,7 @@ class PandasBaseQuery(BaseDataQuery):
         self.df = df
         self.column = column
         self.label = label
-    
+
     @property
     def labels(self):
         return {self.column: self.label}
@@ -28,7 +28,7 @@ class PandasBaseQuery(BaseDataQuery):
         raise NotImplementedError
 
     def execute(self, limit: int = None, skip: int = None, sort=None):
-        logger.debug('Applying pandas dataframe selection')
+        logger.debug("Applying pandas dataframe selection")
 
         if not len(self.df):
             return []
@@ -41,7 +41,7 @@ class PandasBaseQuery(BaseDataQuery):
                 sort = list(sort)
             df = self.df.sort_values(sort)
         df = self.apply_selection(df)
-       
+
         if df.index.names or df.index.name:
             df = df.reset_index()
         if limit is not None:
@@ -50,11 +50,11 @@ class PandasBaseQuery(BaseDataQuery):
             df = df.iloc[start:limit]
         docs = df.to_dict(orient="records")
         docs = self.index.reduce(docs, self.labels)
-        logger.debug(f'Done. Found {len(docs)} documents.')
+        logger.debug(f"Done. Found {len(docs)} documents.")
         docs = from_pandas(docs)
         return docs
 
-    def min(self, fields: Union[str,List[str]]):
+    def min(self, fields: Union[str, List[str]]):
         if isinstance(fields, str):
             fields = [fields]
         df = self.apply_selection(self.df)
@@ -68,7 +68,7 @@ class PandasBaseQuery(BaseDataQuery):
         results = from_pandas(results)
         return results
 
-    def max(self, fields: Union[str,List[str]]):
+    def max(self, fields: Union[str, List[str]]):
         if isinstance(fields, str):
             fields = [fields]
         df = self.apply_selection(self.df)
@@ -81,24 +81,28 @@ class PandasBaseQuery(BaseDataQuery):
             results = results[fields[0]]
         results = from_pandas(results)
         return results
-    
-    def unique(self, fields: Union[str,List[str]]):
+
+    def unique(self, fields: Union[str, List[str]]) -> Union[List[Any], Dict[str,List[Any]]]:
         if isinstance(fields, str):
             fields = [fields]
         df = self.apply_selection(self.df)
+        
         results = {}
         for field in fields:
             if field in df.index.names:
                 df = df.reset_index()
             results[field] = list(df[field].unique())
+
         if len(fields) == 1:
             results = results[fields[0]]
+        
         results = from_pandas(results)
         return results
 
     def count(self):
         df = self.apply_selection(self.df)
         return len(df)
+
 
 class PandasSimpleQuery(PandasBaseQuery):
     def apply_selection(self, df):
@@ -222,7 +226,6 @@ class PandasMultiQuery(PandasBaseQuery):
 
 @DatasourceInterface.register_interface(pd.DataFrame)
 class PandasInterface(DatasourceInterface):
-    
     @classmethod
     def from_url(cls, url: str, **kwargs):
         if url.endswith(".csv"):
@@ -234,7 +237,7 @@ class PandasInterface(DatasourceInterface):
         elif url.endswith(".pkl"):
             df = pd.read_pickle(url, **kwargs)
             return cls(df)
-        
+
         raise NotImplementedError
 
     @singledispatchmethod
@@ -262,9 +265,7 @@ class PandasInterface(DatasourceInterface):
         if not isinstance(index, MultiIndex):
             index = MultiIndex(*index)
 
-        queries = [
-            self.compile_query(idx, labels[idx.name]) for idx in index.indexes
-        ]
+        queries = [self.compile_query(idx, labels[idx.name]) for idx in index.indexes]
 
         return PandasMultiQuery(index, self.source, queries)
 
@@ -274,7 +275,7 @@ class PandasInterface(DatasourceInterface):
 
         if len(index) == 1:
             index = index[0]
-        self.source.loc[index,:] = doc.column_values
+        self.source.loc[index, :] = doc.column_values
 
     update = insert
 
@@ -284,31 +285,36 @@ class PandasInterface(DatasourceInterface):
 
         if len(index) == 1:
             index = index[0]
-        return self.source.drop(index=index,
-                                inplace=True)
+        return self.source.drop(index=index, inplace=True)
+
 
 @singledispatch
 def to_pandas(obj):
     return obj
 
+
 @to_pandas.register(datetime)
 def to_pandas_datetime(obj):
     return pd.to_datetime(obj)
 
+
 @to_pandas.register(dict)
 def to_pandas_dict(obj: dict):
-    if len(obj)==2 and 'left' in obj and 'right' in obj:
-        left, right = to_pandas(obj['left']), to_pandas(obj['right'])
+    if len(obj) == 2 and "left" in obj and "right" in obj:
+        left, right = to_pandas(obj["left"]), to_pandas(obj["right"])
         return pd.Interval(left, right)
     return {k: to_pandas(v) for k, v in obj.items()}
+
 
 @to_pandas.register(list)
 def to_pandas_list(obj):
     return [to_pandas(v) for v in obj]
 
+
 @to_pandas.register(tuple)
 def to_pandas_tuple(obj):
     return tuple(to_pandas(v) for v in obj)
+
 
 @to_pandas.register(Interval)
 def to_pandas_interval(obj):
@@ -320,42 +326,52 @@ def to_pandas_interval(obj):
 def from_pandas(obj):
     return obj
 
+
 @from_pandas.register(pd.DataFrame)
 def from_pandas_df(df):
     return from_pandas(df.to_dict(orient="records"))
 
+
 @from_pandas.register(pd.Series)
-def from_pandas_dict(obj):
+def from_pandas_series(obj):
     return from_pandas(obj.to_dict())
+
 
 @from_pandas.register(pd.Interval)
 def from_pandas_interval(obj):
     left, right = from_pandas(obj.left), from_pandas(obj.right)
     return Interval[left, right]
 
+
 @from_pandas.register(list)
 def from_pandas_list(obj):
     return [from_pandas(v) for v in obj]
+
 
 @from_pandas.register(tuple)
 def from_pandas_tuple(obj):
     return tuple(from_pandas(v) for v in obj)
 
+
 @from_pandas.register(dict)
 def from_pandas_dict(obj):
     return {k: from_pandas(v) for k, v in obj.items()}
+
 
 @from_pandas.register(pd.Timestamp)
 def from_pandas_timestamp(obj):
     return obj.to_pydatetime()
 
+
 @from_pandas.register(pd.Timedelta)
 def from_pandas_timedelta(obj):
     return obj.to_pytimedelta()
 
+
 @from_pandas.register(numbers.Integral)
 def from_pandas_int(obj):
     return int(obj)
+
 
 @from_pandas.register(numbers.Real)
 def from_pandas_float(obj):

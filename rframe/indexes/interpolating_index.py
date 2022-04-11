@@ -58,12 +58,12 @@ class InterpolatingIndex(BaseIndex):
         return self.extrapolate
 
     def reduce(self, docs, label):
-     
+
         if isinstance(label, list):
             return [d for val in label for d in self.reduce(docs, val)]
 
         label = self.validate_label(label)
-        
+
         if not docs or label is None:
             return docs
 
@@ -74,7 +74,7 @@ class InterpolatingIndex(BaseIndex):
         # just convert all datetimes to timestamps to avoid complexity
         # FIXME: maybe properly handle timezones instead
         xs = [xi.timestamp() if isinstance(xi, datetime.datetime) else xi for xi in xs]
-        
+
         if len(docs) == 1:
             new_document = docs[0]
         else:
