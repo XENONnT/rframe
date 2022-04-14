@@ -81,3 +81,9 @@ class TestMongo(unittest.TestCase):
             "mongodb://localhost", database="test", collection="test"
         )
         self.assertIsInstance(interface, rframe.interfaces.MongoInterface)
+
+    def test_ensure_index(self):
+        schema = AdvancedMultiIndexSchema
+        schema.ensure_index(self.collection)
+        name = "_".join([f"{name}_1" for name in schema.get_index_fields()])
+        self.assertIn(name, self.collection.index_information())

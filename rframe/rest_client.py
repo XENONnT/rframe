@@ -30,16 +30,34 @@ class BaseRestClient(ABC):
 
 
 class RestClient(BaseRestClient):
+    QUERY_PATH = '/query'
+    INSERT_PATH = '/insert'
+    DELETE_PATH = "/delete"
+    SUMMARY_PATH = "/summary"
+
     def __init__(self, url, headers=None, client=None):
-        self.url = url
+        self.base_url = url
         self.headers = headers if headers is not None else {}
+
         if client is None:
             client = requests
         self.client = client
 
     @property
     def summary_url(self):
-        return self.url.rstrip("/") + "/summary"
+        return self.base_url.rstrip("/") + self.SUMMARY_PATH
+
+    @property
+    def query_url(self):
+        return self.base_url.rstrip("/") + self.QUERY_PATH
+
+    @property
+    def insert_url(self):
+        return self.base_url.rstrip("/") + self.INSERT_PATH
+
+    @property
+    def delete_url(self):
+        return self.base_url.rstrip("/") + self.DELETE_PATH
 
     def query(self, limit: int = None, skip: int = None, sort=None, **labels):
         labels = jsonable(labels)
@@ -50,7 +68,7 @@ class RestClient(BaseRestClient):
             params["skip"] = skip
         if sort is not None:
             params["sort"] = sort
-        r = self.client.post(self.url, headers=self.headers, json=labels, params=params)
+        r = self.client.post(self.query_url, headers=self.headers, json=labels, params=params)
 
         with logger.catch():
             r.raise_for_status()
@@ -58,9 +76,9 @@ class RestClient(BaseRestClient):
         data = from_json(data)
         return data
 
-    def insert(self, doc):
+    def insert(self, doc):            
         data = doc.json()
-        r = self.client.put(self.url, headers=self.headers, data=data)
+        r = self.client.put(self.insert_url, headers=self.headers, data=data)
         with logger.catch():
             r.raise_for_status()
         return r.json()
@@ -69,7 +87,7 @@ class RestClient(BaseRestClient):
 
     def delete(self, doc):
         data = doc.json()
-        r = self.client.delete(self.url, headers=self.headers, data=data)
+        r = self.client.delete(self.delete_url, headers=self.headers, data=data)
         with logger.catch():
             r.raise_for_status()
         return r.json()

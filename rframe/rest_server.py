@@ -26,6 +26,9 @@ class SchemaRouter(APIRouter):
         schema: Type[BaseSchema],
         datasource=None,
         prefix: Optional[str] = None,
+        query_path = "/query",
+        insert_path = "/insert",
+        delete_path = "/delete",
         tags: Optional[List[Union[str, Enum]]] = None,
         can_read: Union[bool, DEPENDENCIES] = True,
         can_write: Union[bool, DEPENDENCIES] = True,
@@ -44,8 +47,18 @@ class SchemaRouter(APIRouter):
         if isinstance(can_read, Depends):
             can_read = [can_read]
         if can_read:
+            
             self._add_api_route(
                 "",
+                self._schema_route(),
+                methods=["GET"],
+                
+                summary=f"Get json schema for {self.schema.__name__} document",
+                dependencies=can_read,
+            )
+
+            self._add_api_route(
+                query_path,
                 self._query_route(),
                 methods=["POST"],
                 response_model=Optional[List[self.schema]],  # type: ignore
@@ -64,10 +77,11 @@ class SchemaRouter(APIRouter):
 
         if isinstance(can_write, Depends):
             can_write = [can_write]
+
         if can_write:
             self._add_api_route(
-                "",
-                self._insert_route(),
+                insert_path,
+                self._insert_one_route(),
                 methods=["PUT"],
                 response_model=Optional[self.schema],  # type: ignore
                 summary=f"Insert One {self.schema.__name__} document",
@@ -75,7 +89,17 @@ class SchemaRouter(APIRouter):
             )
 
             self._add_api_route(
-                "",
+                insert_path,
+                self._insert_many_route(),
+                methods=["POST"],
+                response_model=List[Union[self.schema,str]],  # type: ignore
+                summary=f"Insert multiple {self.schema.__name__} documents",
+                dependencies=can_write,
+            )
+
+
+            self._add_api_route(
+                delete_path,
                 self._delete_route(),
                 methods=["DELETE"],
                 response_model=Optional[self.schema],  # type: ignore
@@ -274,7 +298,7 @@ class SchemaRouter(APIRouter):
         )
         return query_func
 
-    def _insert_route(self, *args: Any, **kwargs: Any) -> Callable[..., Any]:
+    def _insert_one_route(self, *args: Any, **kwargs: Any) -> Callable[..., Any]:
         def insert(doc: BaseSchema) -> BaseSchema:
             try:
                 doc.save(self.datasource)
@@ -289,7 +313,29 @@ class SchemaRouter(APIRouter):
         signature = inspect.Signature(parameters=[parameter], 
                                       return_annotation=self.schema)
         return makefun.create_function(
-            signature, insert, func_name=f"{self.schema.__name__}_delete"
+            signature, insert, func_name=f"{self.schema.__name__}_insert_one"
+        )
+
+    def _insert_many_route(self, *args: Any, **kwargs: Any) -> Callable[..., Any]:
+        def insert_many(docs: List[BaseSchema]) -> BaseSchema:
+            results = []
+            for doc in docs:
+                try:
+                    doc.save(self.datasource)
+                    results.append(doc)
+                except Exception as e:
+                    results.append(str(e))
+            return results
+            
+        parameter = inspect.Parameter(
+                "docs",
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                annotation=List[self.schema],
+            )
+        signature = inspect.Signature(parameters=[parameter], 
+                                      return_annotation=List[Union[self.schema,str]])
+        return makefun.create_function(
+            signature, insert_many, func_name=f"{self.schema.__name__}_insert_many"
         )
 
     def _delete_route(self, *args: Any, **kwargs: Any) -> Callable[..., Any]:
@@ -309,3 +355,9 @@ class SchemaRouter(APIRouter):
         return makefun.create_function(
             signature, delete, func_name=f"{self.schema.__name__}_delete"
         )
+
+    def _schema_route(self, *args: Any, **kwargs: Any) -> Callable[..., Any]:
+        async def get_schema():
+            return self.schema.schema()
+
+        return get_schema

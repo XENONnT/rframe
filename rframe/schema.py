@@ -275,7 +275,7 @@ class BaseSchema(BaseModel):
     def ensure_index(cls, datasource, **kwargs):
         interface = get_interface(datasource, **kwargs)
         names = list(cls.get_index_fields())
-        return interface.ensure_index(datasource, names)
+        return interface.ensure_index(names)
 
     @classmethod
     def unique(cls, datasource=None, fields: Union[str, List[str]] = None, **labels):
