@@ -85,6 +85,8 @@ class BaseTestSchema(BaseSchema):
             with tester.assertRaises(UpdateError):
                 doc.save(datasource)
 
+        PERMISSIONS['update'] = True
+
     @classmethod
     def delete_data(
         cls, tester: unittest.TestCase, datasource, docs: List["BaseTestSchema"]
@@ -217,9 +219,11 @@ class InterpolatingSchema(BaseTestSchema):
             value = (doc1.value + doc2.value) / 2
             if value < 1e-2:
                 continue
+            
             doc = cls.find_one(datasource, index_field=index)
             ratio = doc.value / value
             tester.assertAlmostEqual(ratio, 1, delta=1e-2)
+
 
     @classmethod
     def test(cls, tester, datasource, docs: List["BaseTestSchema"]):

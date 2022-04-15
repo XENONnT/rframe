@@ -46,13 +46,14 @@ class TestJson(unittest.TestCase):
 
         SimpleMultiIndexSchema.test(self, datasource, docs)
 
-    # FIXME: This test is failing, but it's not clear why.
-    # @given(InterpolatingSchema.list_strategy())
-    # @settings(deadline=None)
-    # def test_interpolated(self, docs: InterpolatingSchema):
-    #     datasource = []
 
-    #     InterpolatingSchema.test(self, datasource, docs)
+    #FIXME: This test is failing, but it's not clear why.
+    @given(InterpolatingSchema.list_strategy())
+    @settings(deadline=None)
+    def test_interpolated(self, docs: InterpolatingSchema):
+        datasource = []
+
+        InterpolatingSchema.test(self, datasource, docs)
 
     @given(IntegerIntervalSchema.list_strategy())
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])

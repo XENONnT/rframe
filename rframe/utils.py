@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from pydantic.json import ENCODERS_BY_TYPE
 from collections.abc import Iterable, Mapping
 
+
 from .types import Interval
 
 

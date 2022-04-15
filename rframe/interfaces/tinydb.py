@@ -49,8 +49,6 @@ class TinyDBSelection:
     def __init__(self, query, sort=None, select=None):
         self.query = query
 
-        if isinstance(sort, str):
-            sort = (sort,)
 
         if not isinstance(sort, (tuple, type(None))):
             raise TypeError(f"sort must be string, tuple or None. Got {type(sort)}")

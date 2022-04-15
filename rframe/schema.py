@@ -1,5 +1,6 @@
 import inspect
 import json
+from numbers import Number
 
 import pandas as pd
 from pydantic import BaseModel, ValidationError
@@ -54,6 +55,15 @@ class BaseSchema(BaseModel):
         for name, field in cls.__fields__.items():
             if not isinstance(field.field_info, BaseIndex):
                 fields[name] = field
+        return fields
+
+    @classmethod
+    def get_numeric_fields(cls):
+        fields = {}
+        for name, field in cls.get_column_fields().items():
+            if issubclass(field.type_, Number):
+                fields[name] = field
+
         return fields
 
     @classmethod

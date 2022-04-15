@@ -4,6 +4,7 @@ import numbers
 
 from functools import singledispatch
 from itertools import product
+
 from typing import List, Union
 from loguru import logger
 
@@ -63,129 +64,193 @@ class MultiMongoAggregation(BaseDataQuery):
         return self.logical_or(other)
 
 
-class MongoAggregation(BaseDataQuery):
-    pipeline: list
+    class MongoAggregation(BaseDataQuery):
+        pipeline: list
 
-    def __init__(self, index, labels, collection: Collection, pipeline: list):
-        if not isinstance(collection, Collection):
-            raise TypeError(
-                f"collection must be a pymongo Collection, got {type(collection)}."
-            )
-        self.index = index
-        self.labels = labels
-        self.collection = collection
-        self.pipeline = pipeline
+        def __init__(self, index, labels, collection: Collection, pipeline: list):
+            if not isinstance(collection, Collection):
+                raise TypeError(
+                    f"collection must be a pymongo Collection, got {type(collection)}."
+                )
+            self.index = index
+            self.labels = labels
+            self.collection = collection
+            self.pipeline = pipeline
 
-    @property
-    def docs_per_label(self):
-        n = 1
-        if isinstance(self.index, MultiIndex):
-            for index in self.index.indexes:
-                if self.labels.get(index.name, None) is not None:
-                    n *= index.DOCS_PER_LABEL
-        elif self.labels.get(self.index.name, None) is not None:
-            n *= self.index.DOCS_PER_LABEL
-        return n
+        @property
+        def docs_per_label(self):
+            return 1
+            # n = 1
+            # if isinstance(self.index, MultiIndex):
+            #     for index in self.index.indexes:
+            #         if self.labels.get(index.name, None) is not None:
+            #             n *= index.DOCS_PER_LABEL
+            # elif self.labels.get(self.index.name, None) is not None:
+            #     n *= self.index.DOCS_PER_LABEL
+            # return n
 
-    def execute(self, limit: int = None, skip: int = None, sort=None):
-        return list(self.iter(limit=limit, skip=skip, sort=sort))
+        def execute(self, limit: int = None, skip: int = None, sort=None):
+            return list(self.iter(limit=limit, skip=skip, sort=sort))
 
-    def iter(self, limit=None, skip=None, sort=None):
-        pipeline = list(self.pipeline)
-
-        if sort is not None:
-            sort = [sort] if isinstance(sort, str) else sort
-            if isinstance(sort, list):
-                sort_arg = {field: 1 for field in sort}
-            elif isinstance(sort, dict):
-                sort_arg = sort
-            else:
-                raise TypeError(f"sort must be a list or dict, got {type(sort)}.")
-            pipeline = [{"$sort": sort_arg}] + pipeline
-
-        if isinstance(skip, int):
-            raw_skip = skip * self.docs_per_label
-            pipeline.append({"$skip": raw_skip})
-
-        if isinstance(limit, int):
-            raw_limit = limit * self.docs_per_label
-            raw_limit = int(raw_limit)
-            pipeline.append({"$limit": raw_limit})
-
-        pipeline.append({"$project": {"_id": 0}})
-
-        logger.debug(f"Executing mongo aggregation: {pipeline}.")
-
-        # docs = list(self.collection.aggregate(pipeline, allowDiskUse=True))
-        collected = 0
-        limit = limit if limit is not None else float("inf")
-        docs = []
-        for doc in self.collection.aggregate(pipeline, allowDiskUse=True):
-            docs.append(doc)
-            if len(docs) >= self.docs_per_label:
-                docs = self.index.reduce(docs, self.labels)
-                for doc in docs:
-                    yield from_mongo(doc)
-                    collected += 1
-                    if collected >= limit:
-                        return
-                docs = []
-        if len(docs) and collected < limit:
-            docs = self.index.reduce(docs, self.labels)
-            for doc in docs:
-                yield from_mongo(doc)
-                collected += 1
-                if collected >= limit:
-                    return
-
-    def unique(self, fields: Union[str, List[str]]):
-        if isinstance(fields, str):
-            fields = [fields]
-        results = {}
-        for field in fields:
+        def iter(self, limit=None, skip=None, sort=None):
             pipeline = list(self.pipeline)
-            pipeline.append(
-                {
+
+            if sort is not None:
+                sort = [sort] if isinstance(sort, str) else sort
+                if isinstance(sort, list):
+                    sort_arg = { field: 1 for field in sort}
+                elif isinstance(sort, dict):
+                    sort_arg = sort
+                else:
+                    raise TypeError(f"sort must be a list or dict, got {type(sort)}.")
+                pipeline = [{ "$sort": sort_arg }] + pipeline
+
+            if isinstance(skip, int):
+                raw_skip = skip * self.docs_per_label
+                pipeline.append({"$skip": raw_skip})
+
+            if isinstance(limit, int):
+                pipeline.append({"$limit": limit})
+             
+            # pipeline.append({"$project": { "_id": 0}})
+
+            logger.debug(f'Executing mongo aggregation: {pipeline}.')
+
+            collected = 0
+            limit = limit if limit is not None else float('inf')
+            yield from self.collection.aggregate(pipeline, allowDiskUse=True)
+
+        def unique(self, fields: Union[str, List[str]]):
+            if isinstance(fields, str):
+                fields = [fields]
+            results = {}
+            for field in fields:
+                pipeline = list(self.pipeline)
+                pipeline.append({
                     "$group": {
                         "_id": "$" + field,
                         "first": {"$first": "$" + field},
                     }
-                }
-            )
 
-            results[field] = [
-                doc["first"]
-                for doc in self.collection.aggregate(pipeline, allowDiskUse=True)
-            ]
+                    })
+                    
+                results[field] = [doc['first'] for doc in 
+                                  self.collection.aggregate(pipeline, allowDiskUse=True)]
+            if len(fields) == 1:
+                return results[fields[0]]
+            return results
+        
+        def max(self, fields: Union[str, List[str]]):
+            if isinstance(fields, str):
+                fields = [fields]
+            results = {}
+            for field in fields:
+                pipeline = list(self.pipeline)
+                pipeline.append({
+                    "$sort": { field: -1}
+                })
+                pipeline.append({"$limit": 1})
+                # pipeline.append({"$project": { "_id": 0}})
+                try:
 
-        results = from_mongo(results)
+                    results[field] = next(self.collection.aggregate(pipeline, allowDiskUse=True))[field]
+                except (StopIteration, KeyError):
+                    results[field] = None
+            if len(fields) == 1:
+                return results[fields[0]]
+            return results
 
-        if len(fields) == 1:
-            return results[fields[0]]
-        return results
+        def min(self, fields: Union[str, List[str]]):
+            if isinstance(fields, str):
+                fields = [fields]
+            results = {}
+            for field in fields:
+                pipeline = list(self.pipeline)
+                pipeline.append({
+                    "$sort": { field: 1}
+                })
+                pipeline.append({"$limit": 1})
+                # pipeline.append({"$project": { "_id": 0}})
+                try:
+                    results[field] = next(self.collection.aggregate(pipeline, allowDiskUse=True))[field]
+                except (StopIteration, KeyError):
+                    results[field] = None
 
-    def max(self, fields: Union[str, List[str]]):
-        if isinstance(fields, str):
-            fields = [fields]
-        results = {}
-        for field in fields:
+            if len(fields) == 1:
+                return results[fields[0]]
+            return results
+
+        def count(self):
             pipeline = list(self.pipeline)
             pipeline.append({"$sort": {field: -1}})
             pipeline.append({"$limit": 1})
             pipeline.append({"$project": {"_id": 0}})
             try:
 
-                results[field] = next(
-                    self.collection.aggregate(pipeline, allowDiskUse=True)
-                )[field]
-            except (StopIteration, KeyError):
-                results[field] = None
+        def simple_multi_query(self, index, labels):
+            pipeline = []
+            indexes = sorted(index.indexes, key=lambda index: query_precendence[type(index)])
 
-        results = from_mongo(results)
+            for idx in indexes:
+                agg = self.compile_query(idx, labels)
+                pipeline.extend(agg.pipeline)
+            return MongoAggregation(index, labels, self.source, pipeline)
 
-        if len(fields) == 1:
-            return results[fields[0]]
-        return results
+        @compile_query.register(list)
+        @compile_query.register(tuple)
+        @compile_query.register(MultiIndex)
+        def multi_query(self, index: MultiIndex, labels: dict):
+            logger.debug('Building mongo multi-query for index: '
+                        f'{index} with labels: {labels}')
+            if not isinstance(index, MultiIndex):
+                index = MultiIndex(*index)
+
+            return self.simple_multi_query(index, labels)
+
+        @compile_query.register(Index)
+        @compile_query.register(str)
+        def get_simple_query(self, index, labels):
+            logger.debug('Building mongo simple-query for index: '
+                        f'{index} with label: {labels}')
+
+            name = index.name if isinstance(index, Index) else index
+
+            if isinstance(labels, dict) and index.name in labels:
+                labels = dict(labels)
+            else:
+                labels = {index.name: labels}
+            
+            label = labels.get(index.name, None)
+
+            label = to_mongo(label)
+
+            if isinstance(label, slice):
+                # support basic slicing, this will only work
+                # for values that are comparable with the
+                #  $gt/$lt operators
+                start = label.start
+                stop = label.stop
+                step = label.step
+                if step is None:
+                    label = {}
+                    if start is not None:
+                        label["$gte"] = start
+                    if stop is not None:
+                        label["$lt"] = stop
+                    if not label:
+                        label = None
+                else:
+                    label = list(range(start, stop, step))
+
+            match = {name: label}
+
+            if isinstance(label, list):
+                # support querying multiple values
+                # in the same request
+                match = {name: {"$in": label}}
+
+            elif isinstance(label, dict):
+                match = {f"{name}.{k}": v for k, v in label.items()}
 
     def min(self, fields: Union[str, List[str]]):
         if isinstance(fields, str):
@@ -232,94 +297,85 @@ class MongoAggregation(BaseDataQuery):
         if isinstance(other, MultiMongoAggregation):
             return other + self
 
-    def __add__(self, other):
-        return self.logical_or(other)
 
-    def __and__(self, other):
-        return self.logical_and(other)
+        @compile_query.register(InterpolatingIndex)
+        def build_interpolation_query(self, index: InterpolatingIndex, labels: dict):
+            """For interpolation we interpolate between the two values directly before and after
+            the value of interest. If no document is found after the requested value
+            and extrapolation is allowed, we return the last value.
+            """
+            logger.debug('Building mongo interpolating-query for index: '
+                        f'{index} with label: {labels}')
 
-    def __mul__(self, other):
-        return self.logical_and(other)
+            if isinstance(labels, dict):
+                labels = dict(labels)
+            else:
+                labels = {index.name: labels}
+            
+            label = labels.get(index.name, None)
+            other_index_names = tuple(name for name in labels if name != index.name)
 
-
-@DatasourceInterface.register_interface(pymongo.collection.Collection)
-class MongoInterface(DatasourceInterface):
-    @classmethod
-    def from_url(
-        cls, source: str, database: str = None, collection: str = None, **kwargs
-    ):
-        if source.startswith("mongodb"):
-            if database is None:
-                raise ValueError("database must be specified")
-            if collection is None:
-                raise ValueError("collection must be specified")
-            source = pymongo.MongoClient(source)[database][collection]
-            return cls(source)
-
-        raise NotImplementedError
-
-    @singledispatchmethod
-    def compile_query(self, index, label):
-        raise NotImplementedError(
-            f"{self.__class__.__name__} does not support {type(index)} indexes."
-        )
-
-    def simple_multi_query(self, index, labels):
-        pipeline = []
-        indexes = sorted(index.indexes, key=lambda x: query_precendence[type(x)])
-        for idx in indexes:
-            label = labels[idx.name]
             if label is None:
-                continue
-            others = [name for name in index.names if name != idx.name]
-            agg = self.compile_query(idx, label, others=others)
-            pipeline.extend(agg.pipeline)
-        return MongoAggregation(index, labels, self.source, pipeline)
+                return MongoAggregation(index, labels, self.source, [])
 
-    def product_multi_query(self, index, labels):
-        labels = [label if isinstance(label, list) else [label] for label in labels]
-        aggs = []
-        for label_vals in product(*labels):
-            agg = self.simple_multi_query(index.indexes, label_vals)
-            aggs.append(agg)
-        return MultiMongoAggregation(self.source, aggs)
+            label = to_mongo(label)
 
-    @compile_query.register(list)
-    @compile_query.register(tuple)
-    @compile_query.register(MultiIndex)
-    def multi_query(self, index, labels):
-        logger.debug(
-            "Building mongo multi-query for index: " f"{index} with labels: {labels}"
-        )
-        if not isinstance(index, MultiIndex):
-            index = MultiIndex(*index)
-        return self.simple_multi_query(index, labels)
+            numeric_fields = list(index.schema.get_numeric_fields())
+            other_fields = [name for name in index.schema.__fields__ 
+                            if name not in numeric_fields+[index.name]]
 
-    @compile_query.register(Index)
-    @compile_query.register(str)
-    def get_simple_query(self, index, label, others=None):
-        logger.debug(
-            "Building mongo simple-query for index: " f"{index} with label: {label}"
-        )
-        name = index.name if isinstance(index, Index) else index
+            pipeline = mongo_interpolating_aggregation(index.name,
+                                                       label,
+                                                       numeric_fields=numeric_fields,
+                                                       other_fields=other_fields,
+                                                       extrapolate=index.can_extrapolate(labels),
+                                                       groupby=other_index_names)
 
-        label = to_mongo(label)
+        @compile_query.register(IntervalIndex)
+        def build_interval_query(self, index: IntervalIndex, labels: dict):
+            """Query overlaping documents with given interval, supports multiple
+            intervals as well as zero length intervals (left==right)
+            multiple overlap queries are joined with the $or operator
+            """
+            if isinstance(labels, dict) and index.name in labels:
+                labels = dict(labels)
+            else:
+                labels = {index.name: labels}
+            
+            label = labels.get(index.name, None)
 
-        if isinstance(label, slice):
-            # support basic slicing, this will only work
-            # for values that are comparable with the
-            #  $gt/$lt operators
-            start = label.start
-            stop = label.stop
-            step = label.step
-            if step is None:
-                label = {}
-                if start is not None:
-                    label["$gte"] = start
-                if stop is not None:
-                    label["$lt"] = stop
-                if not label:
-                    label = None
+            logger.debug('Building mongo interval-query for index: '
+                        f'{index} with labels: {labels}')
+
+            if isinstance(label, list):
+                intervals = label
+            else:
+                intervals = [label]
+            
+            intervals = to_mongo(intervals)
+
+            queries = []
+            for interval in intervals:
+                if interval is None:
+                    continue
+                if isinstance(interval, tuple) and all([i is None for i in interval]):
+                    continue
+
+                query = mongo_overlap_query(index, interval)
+                if query:
+                    queries.append(query)
+
+            if queries:
+                pipeline = [
+                    {
+                        "$match": {
+                            # support querying for multiple values
+                            # in a single pipeline
+                            "$or": queries,
+                        }
+                    },
+                    
+                ]
             else:
                 label = list(range(start, stop, step))
 
@@ -367,15 +423,34 @@ class MongoInterface(DatasourceInterface):
             labels = {index.name: label}
             return MongoAggregation(index, labels, self.source, pipeline)
 
-        pipelines = {
-            f"agg{i}": mongo_closest_query(index.name, value)
-            for i, value in enumerate(label)
-        }
-        pipeline = merge_pipelines(pipelines)
+
+        def insert(self, doc):
+            """We want the client logic to be agnostic to
+            whether the value being replaced is actually stored in the DB or
+            was inferred from e.g interpolation.
+            The find_one_and_replace(upsert=True) logic is the best match
+            for the behavior we want even though it wasts an insert operation
+            when a document already exists.
+            FIXME: Maybe we can optimize this with an pipeline to
+            avoid replacing existing documents with a copy.
+            """
+            from rframe.schema import InsertionError
+            index = to_mongo(doc.index_labels)
+            try:
+                doc = self.source.find_one_and_update(
+                    index,
+                    {"$set": to_mongo(doc.dict())},
+                    projection={"_id": False},
+                    upsert=True,
+                    return_document=pymongo.ReturnDocument.AFTER,
+                )
+                return doc
+            except Exception as e:
+                raise InsertionError(f"Mongodb has rejected this insertion:\n {e} ")
+        
+        update = insert
 
         labels = {index.name: label}
-
-        return MongoAggregation(index, labels, self.source, pipeline)
 
     @compile_query.register(IntervalIndex)
     def build_interval_query(self, index, label, others=None):
@@ -524,85 +599,6 @@ def mongo_overlap_query(index, interval):
         return {}
 
 
-def mongo_before_query(name, value, limit=1):
-    if isinstance(limit, list):
-        return mongo_grouped_before_query(name, value, limit)
-    return [
-        {"$match": {f"{name}": {"$lte": value}}},
-        {"$sort": {f"{name}": -1}},
-        {"$limit": limit},
-    ]
-
-
-def mongo_after_query(name, value, limit=1):
-    if isinstance(limit, list):
-        return mongo_grouped_after_query(name, value, limit)
-    return [
-        {"$match": {f"{name}": {"$gt": value}}},
-        {"$sort": {f"{name}": 1}},
-        {"$limit": limit},
-    ]
-
-
-def mongo_grouped_before_query(name, value, groups):
-
-    return [
-        {"$match": {f"{name}": {"$lte": value}}},
-        {"$sort": {f"{name}": -1}},
-        {"$group": {"_id": [f"${grp}" for grp in groups], "doc": {"$first": "$$ROOT"}}},
-        {
-            # make the documents the new root, discarding the groupby value
-            "$replaceRoot": {"newRoot": "$doc"},
-        },
-    ]
-
-
-def mongo_grouped_after_query(name, value, groups):
-    return [
-        {"$match": {f"{name}": {"$gt": value}}},
-        {"$sort": {f"{name}": 1}},
-        {"$group": {"_id": [f"${grp}" for grp in groups], "doc": {"$first": "$$ROOT"}}},
-        {
-            # make the documents the new root, discarding the groupby value
-            "$replaceRoot": {"newRoot": "$doc"},
-        },
-    ]
-
-
-def mongo_closest_query(name, value):
-    return [
-        {
-            "$addFields": {
-                # Add a field splitting the documents into
-                # before and after the value of interest
-                "_after": {"$gte": [f"${name}", value]},
-                # Add a field with the distance to the value of interest
-                "_diff": {"$abs": {"$subtract": [value, f"${name}"]}},
-            }
-        },
-        {
-            # sort in ascending order by distance
-            "$sort": {"_diff": 1},
-        },
-        {
-            # first group by whether document is before or after the value
-            # the take the first document in each group
-            "$group": {
-                "_id": "$_after",
-                "doc": {"$first": "$$ROOT"},
-            }
-        },
-        {
-            # make the documents the new root, discarding the groupby value
-            "$replaceRoot": {"newRoot": "$doc"},
-        },
-        {
-            # drop the extra fields, they are no longer needed
-            "$project": {"_diff": 0, "_after": 0},
-        },
-    ]
-
-
 def merge_pipelines(pipelines):
     pipeline = [
         {
@@ -623,7 +619,175 @@ def merge_pipelines(pipelines):
         # move list of documents to the root of the result
         # so we just get a nice list of documents
         {"$replaceRoot": {"newRoot": "$union"}},
+        
     ]
+    return pipeline
+
+
+def mongo_before_query(name, value, groupby=None):
+    pipeline = [
+        {"$match": {f"{name}": {"$lte": value}}},
+        {"$sort": {f"{name}": -1}}
+        ]
+    if groupby:
+        pipeline.extend([
+        {"$group": {"_id": [f"${grp}" for grp in groupby], "doc": {"$first": "$$ROOT"}}},
+        {
+            # make the documents the new root, discarding the groupby value
+            "$replaceRoot": {"newRoot": "$doc"},
+        },
+
+        
+        ])
+    else:
+        pipeline.append({"$limit": 1})
+    return pipeline
+
+def mongo_after_query(name, value, groupby=None):
+    pipeline = [
+        {"$match": {f"{name}": {"$gt": value}}},
+        {"$sort": {f"{name}": 1}},
+        ]
+    if groupby:
+        pipeline.extend([
+        {"$group": {"_id": [f"${grp}" for grp in groupby], "doc": {"$first": "$$ROOT"}}},
+        {
+            # make the documents the new root, discarding the groupby value
+            "$replaceRoot": {"newRoot": "$doc"},
+        },
+        ])
+    else:
+        pipeline.append({"$limit": 1})
+    return pipeline
+
+def mongo_interpolating_aggregation(name, values, numeric_fields=(), groupby=(),
+                              other_fields=(), interpolate=True, extrapolate=False):
+    if not isinstance(values, list):
+        values = [values]
+        
+    first_facet = {}
+    unwind = []    
+    for i, value in enumerate(values):       
+        first_facet[f'before{i}'] = mongo_before_query(name, value, groupby=groupby) 
+        first_facet[f'after{i}'] = mongo_after_query(name, value, groupby=groupby)
+        unwind.append({"$unwind": {'path': f"$before{i}",}})
+        unwind.append({"$unwind": {"path": f"$after{i}",
+                                   'preserveNullAndEmptyArrays': True}})
+
+    
+    second_facet = {}
+    for i, value in enumerate(values):
+        # set the interpolated index to the value being queried
+        projection = {name: {'$literal': value}}
+
+        for field in numeric_fields:
+            # numeric fields are interpolated linearly
+            projection[field] = {'$cond': [{'$eq': [{'$type': f'$after{i}'}, 'missing']},
+                                             f'$before{i}.{field}',
+                                            {'$add': [
+                    {'$multiply': [f'$after{i}.{field}', 
+                                   {'$divide': [{'$subtract': [{'$literal': value}, f'$before{i}.{name}']},
+                                                {'$subtract': [f'$after{i}.{name}', f'$before{i}.{name}']}]
+                                   }]},
+                    {'$multiply': [f'$before{i}.{field}',
+                                   {'$divide': [{'$subtract': [f'$after{i}.{name}', {'$literal': value}]}, 
+                                                {'$subtract': [f'$after{i}.{name}', f'$before{i}.{name}']}]}]}
+                ]},
+                ]}
+
+        for field in other_fields:
+            # non numeric fields match on nearest neighbor
+            projection[field] = {'$cond': [{'$eq': [{'$type': f'$after{i}'}, 'missing']}, 
+                                           f"$before{i}.{field}",
+                                           {'$cond': [{'$lte': [
+                                               {'$subtract': [{'$literal': value}, f'$before{i}.{name}']},
+                                               {'$subtract': [f'$after{i}.{name}', {'$literal': value}]}
+                                           ]},
+                                            f"$before{i}.{field}",
+                                            f"$after{i}.{field}",
+                                                      ]},
+                                ]}
+        
+        if extrapolate:
+            subpipeline = []
+        else:
+            subpipeline = [{'$match': 
+                            {'$or': [
+                                    {f'after{i}': {'$exists': True}}, 
+                                    { '$expr': { '$eq': [f'$before{i}.{name}',
+                                                        {'$literal': value}]}}
+                                    ] }
+                            }
+                        ]
+
+        subpipeline.append({'$project': projection })
+            
+        second_facet[f'{name}{i}'] = subpipeline
+        
+    find_data = [ { "$facet": first_facet }]
+    
+        
+    filter_groups_stage = [
+        {
+            '$match': {'$and': [{'$or': [{f'after{i}': {'$exists': False} }, 
+                                         { '$expr': { '$eq': [f'$after{i}.{grp}', f'$before{i}.{grp}'] }}]}
+                                for i in range(len(values)) for grp in groupby] },
+        }
+        
+    ]
+    
+    if len(values)>1:
+        exprs = []
+        for grp in groupby:
+            for i in range(1, len(values)):
+                expr = { '$or': [{f'before{i}.{grp}': {'$exists': False}},
+                                 { '$expr': { '$eq': [ f'$before0.{grp}', f'$before{i}.{grp}'] } }] }
+                exprs.append(expr)
+            filter_groups_stage.append(
+                {
+                '$match': expr
+                }
+            )
+
+    interpolation_stage = [
+        
+        
+        {'$facet': second_facet},
+        
+        {
+            '$project': {
+                    'merged': {
+                        '$zip': {'inputs': [f'${k}' for k in second_facet],
+                                 'useLongestLength': True},
+                              }
+                        }, 
+        },
+
+        {
+            '$project': {
+                'docs': { '$reduce': {'input': '$merged',
+                                      'initialValue': [], 
+                                      'in': { '$concatArrays': [ "$$value", "$$this"] } } },
+            }
+        },
+        {"$unwind": "$docs"},
+        {'$match': {'docs': {'$ne': None}}},
+        {
+            # make the documents the new root, discarding the groupby value
+            "$replaceRoot": {"newRoot": "$docs"},
+        },  
+        
+    ]
+    
+    pipeline = find_data + unwind
+    
+    if groupby:
+        pipeline += filter_groups_stage
+
+    if interpolate:
+        pipeline += interpolation_stage
+
+
     return pipeline
 
 
@@ -660,8 +824,7 @@ def to_mongo_df(df):
 @to_mongo.register(datetime.datetime)
 def to_mongo_datetime(obj):
     # mongodb datetime has millisecond resolution
-    return obj.replace(microsecond=int(obj.microsecond / 1000) * 1000)
-
+    return obj.replace(microsecond=int(obj.microsecond/1000)*1000)
 
 @to_mongo.register(datetime.timedelta)
 def to_mongo_timedelta(obj):
@@ -669,14 +832,14 @@ def to_mongo_timedelta(obj):
     seconds = int(obj.total_seconds() * 1e3) / 1e3
     return datetime.timedelta(seconds=seconds)
 
-
+  
 @to_mongo.register(pd.Timestamp)
 def to_mongo_timestamp(obj):
     return to_mongo(obj.to_pydatetime())
 
 
 @to_mongo.register(pd.Timedelta)
-def to_mongo_pdtimedelta(obj):
+def to_mongo_timedelta(obj):
     return to_mongo(obj.to_pytimedelta())
 
 
@@ -684,11 +847,9 @@ def to_mongo_pdtimedelta(obj):
 def to_mongo_int(obj):
     return int(obj)
 
-
 @to_mongo.register(numbers.Real)
 def to_mongo_float(obj):
     return float(obj)
-
 
 @singledispatch
 def from_mongo(obj):
@@ -709,4 +870,5 @@ def from_mongo_tuple(obj):
 def from_mongo_dict(obj):
     if len(obj) == 2 and "left" in obj and "right" in obj:
         return Interval[obj["left"], obj["right"]]
+
     return {k: from_mongo(v) for k, v in obj.items()}
