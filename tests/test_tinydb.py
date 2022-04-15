@@ -8,7 +8,7 @@ from loguru import logger
 import pandas as pd
 
 
-from hypothesis import assume, given, settings
+from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 from tinydb import TinyDB, Query, where
 
@@ -56,14 +56,14 @@ class TestTinyDB(unittest.TestCase):
         InterpolatingSchema.test(self, datasource, docs)
 
     @given(IntegerIntervalSchema.list_strategy())
-    @settings(deadline=None)
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     def test_integer_interval(self, docs: IntegerIntervalSchema):
         self.table.truncate()
         datasource = self.table
         IntegerIntervalSchema.test(self, datasource, docs)
 
     @given(TimeIntervalSchema.list_strategy())
-    @settings(deadline=None)
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     def test_time_interval(self, docs: TimeIntervalSchema):
         self.table.truncate()
         datasource = self.table

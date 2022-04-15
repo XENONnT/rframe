@@ -17,7 +17,7 @@ class MultiIndex(BaseIndex):
             if index.name in ["", "index"]:
                 index.name = f"index_{i}"
         self._indexes = indexes
-        
+
     @property
     def DOCS_PER_LABEL(self):
         ndocs = 1
@@ -62,3 +62,8 @@ class MultiIndex(BaseIndex):
     def __repr__(self):
         return f"MultiIndex({self.indexes})"
 
+    def label_options(self, query):
+        label_options = []
+        for idx in self.indexes:
+            label_options.append(idx.label_options(query))
+        return label_options

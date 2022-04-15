@@ -1,9 +1,9 @@
 import datetime
+import numpy as np
+
 from typing import Callable, Union
 
-import numpy as np
-from scipy.interpolate import interp1d
-
+from ..types import Interval
 from ..utils import singledispatch
 from .base import BaseIndex
 from ..types import Interval
@@ -22,10 +22,7 @@ def interpolater(x, xs, ys, kind="linear"):
 @interpolater.register(int)
 def interpolate_number(x, xs, ys, kind="linear"):
     if isinstance(ys[0], (float, int)):
-        func = interp1d(
-            xs, ys, fill_value=(ys[0], ys[-1]), bounds_error=False, kind=kind
-        )
-        return func(x).item()
+        return np.interp(x, xs, ys)
     return nn_interpolate(x, xs, ys)
 
 
@@ -60,6 +57,7 @@ class InterpolatingIndex(BaseIndex):
             return self.extrapolate(labels)
         return self.extrapolate
 
+
     # def reduce(self, docs, label):
      
     #     if isinstance(label, list):
@@ -69,10 +67,18 @@ class InterpolatingIndex(BaseIndex):
         
     #     if not docs or label is None:
     #         return docs
-
     #     x = label.timestamp() if isinstance(label, datetime.datetime) else label
 
     #     xs = [self.validate_label(d[self.name]) for d in docs]
+
+
+    def label_options(self, query):
+        left = query.min(self.name)
+        right = query.max(self.name)
+        if left is None or right is None:
+            return []
+        iv_class = Interval[type(left)]
+        return [iv_class(left=left, right=right)]
 
     #     # just convert all datetimes to timestamps to avoid complexity
     #     # FIXME: maybe properly handle timezones instead
@@ -96,7 +102,3 @@ class InterpolatingIndex(BaseIndex):
     #         return [new_document]
 
     #     return []
-
-    def label_range(self, query):
-        left, right = query.min(self.name), query.max(self.name)
-        return Interval(left=left, right=right)

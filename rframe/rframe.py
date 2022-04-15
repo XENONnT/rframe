@@ -1,16 +1,19 @@
 """Main module."""
 
-from datetime import datetime
-from typing import Any, List, Tuple, Type, Union
-
 import pandas as pd
-from pydantic.typing import NoneType
+
+from datetime import datetime
+from typing import Any, List, Optional, Tuple, Type, Union
+from pandas.core.indexes.frozen import FrozenList
+
+from .indexes import MultiIndex
 
 from .interfaces import get_interface
+from .interfaces.pandas import to_pandas
 from .schema import BaseSchema, InsertionError, UpdateError
 from .utils import camel_to_snake, singledispatchmethod
 
-IndexLabel = Union[int, float, datetime, str, slice, NoneType, List]
+IndexLabel = Optional[Union[int, float, datetime, str, slice, List]]
 
 
 class RemoteFrame:
@@ -23,13 +26,16 @@ class RemoteFrame:
 
     _index = None
 
-    def __init__(self, schema: Type[BaseSchema], datasource: Any = None, **labels) -> None:
+    def __init__(
+        self, schema: Type[BaseSchema], datasource: Any = None, **labels
+    ) -> None:
         self.schema = schema
         self._datasource = datasource
         self._labels = labels
+        self._index = None
 
     @classmethod
-    def from_mongodb(cls, schema, url, db, collection, **kwargs):
+    def from_mongodb(cls, schema, url, db, collection, **kwargs) -> 'RemoteFrame':
         import pymongo
 
         db = pymongo.MongoClient(url, **kwargs)[db]
@@ -37,35 +43,40 @@ class RemoteFrame:
         return cls(schema, collection)
 
     @property
-    def datasource(self):
+    def datasource(self) -> Any:
         if isinstance(self._datasource, RemoteFrame):
             self._datasource = self._datasource.df
         return self._datasource
 
     @property
-    def df(self):
+    def df(self) -> pd.DataFrame:
         return self.schema.find_df(self.datasource, **self._labels)
 
     @property
-    def name(self):
+    def name(self) -> str:
         return camel_to_snake(self.schema.__name__)
 
     @property
-    def columns(self):
+    def index_names(self) -> FrozenList:
+        return FrozenList(self.schema.get_index_fields())
+
+    @property
+    def columns(self) -> pd.Index:
         return pd.Index(list(self.schema.get_column_fields()))
 
     @property
-    def index(self):
+    def index(self) -> pd.Index:
+        # FIXME: make a proxy object that only loads labels if accessed.
         if self._index is None:
             self._recreate_index()
         return self._index
 
     @property
-    def loc(self) -> 'LocIndexer':
+    def loc(self) -> "LocIndexer":
         return LocIndexer(self)
 
     @property
-    def iloc(self) -> 'ILocIndexer':
+    def iloc(self) -> "ILocIndexer":
         return ILocIndexer(self)
 
     @property
@@ -73,28 +84,28 @@ class RemoteFrame:
         return AtIndexer(self)
 
     @property
-    def size(self):
+    def size(self) -> int:
         return self.schema.count(self.datasource, **self._labels)
 
     def head(self, n=10) -> pd.DataFrame:
         """Return first n documents as a pandas dataframe"""
         sort = list(self.schema.get_index_fields())
-        return self.schema.find_df(self.datasource, _limit=n, _sort=sort, **self._labels)
+        return self.schema.find_df(
+            self.datasource, _limit=n, _sort=sort, **self._labels
+        )
 
-    def isel(self, idx: Union[int,slice]):
+    def isel(self, idx: Union[int, slice]):
         """Get a single document or slice by index"""
         if isinstance(idx, int):
-            idx = slice(idx, idx+1)
+            idx = slice(idx, idx + 1)
         if not isinstance(idx, slice):
             raise ValueError("Index must be an integer or slice")
         skip = idx.start if idx.start else 0
         limit = idx.stop - skip if idx.stop is not None else None
         sort = list(self.schema.get_index_fields())
-        return self.schema.find_df(self.datasource,
-                                   _skip=skip,
-                                   _limit=limit,
-                                   _sort=sort,
-                                   **self._labels)
+        return self.schema.find_df(
+            self.datasource, _skip=skip, _limit=limit, _sort=sort, **self._labels
+        )
 
     def unique(self, columns: Union[str, List[str]] = None):
         """Return unique values for each column"""
@@ -106,7 +117,7 @@ class RemoteFrame:
         """Return the minimum value for column"""
         if columns is None:
             columns = self.columns
-        return self.schema.min(self.datasource, fields=columns, **self._labels )
+        return self.schema.min(self.datasource, fields=columns, **self._labels)
 
     def max(self, columns: Union[str, List[str]]) -> Any:
         """Return the maximum value for column"""
@@ -119,20 +130,20 @@ class RemoteFrame:
         returns a pandas dataframe if all indexes are specified.
         Otherwise returns a RemoteFrame
         """
-        index_fields = self.index.names
+        index_fields = self.index_names
         labels = {name: lbl for name, lbl in zip(index_fields, args)}
         labels.update(kwargs)
 
         merged = dict(self._labels)
         extra = {}
-        for k,v in labels.items():
+        for k, v in labels.items():
             if k in merged:
                 extra[k] = v
             else:
                 merged[k] = v
 
         rf = RemoteFrame(self.schema, self.datasource, **merged)
-        if all([label in merged for label in self.index.names]):
+        if all([label in merged for label in self.index_names]):
             rf = rf.df
         if len(extra):
             rf = RemoteFrame(self.schema, rf, **extra)
@@ -141,7 +152,7 @@ class RemoteFrame:
 
     def set(self, *args: IndexLabel, **kwargs: IndexLabel) -> BaseSchema:
         """Insert data by index"""
-        labels = {name: lbl for name, lbl in zip(self.index.names, args)}
+        labels = {name: lbl for name, lbl in zip(self.index_names, args)}
         kwargs.update(labels)
         doc = self.schema(**kwargs)
         res = doc.save(self.datasource)
@@ -156,37 +167,33 @@ class RemoteFrame:
             records = records.df
         if isinstance(records, pd.DataFrame):
             records = self.schema.from_pandas(records)
-        
+
         succeeded = []
         failed = []
         errors = []
         for record in records:
-            if not isinstance(doc, self, self.schema):
-                doc = self.schema(**record)
+            if not isinstance(record, self.schema):
+                record = self.schema(**record)
             try:
-                doc.save(self.datasource)
-                succeeded.append(doc)
+                record.save(self.datasource)
+                succeeded.append(record)
             except (InsertionError, UpdateError) as e:
-                failed.append(doc)
+                failed.append(record)
                 errors.append(str(e))
         if len(succeeded):
             self._index = None
         return succeeded, failed, errors
 
-    def _recreate_index(self):
-        fields = list(self.schema.get_index_fields())
-        unique = self.unique(fields)
-        if isinstance(unique, dict):
-            values = []
-            for k,vs in unique.items():
-                index = self.schema.index_for(k)
-                values.append([index.to_pandas(vi) for vi in vs])
-            self._index =  pd.MultiIndex.from_product(values, names=fields)
+    def _recreate_index(self) -> None:
+        index = self.schema.get_index()
+        query = self.schema.compile_query(self.datasource, **self._labels)
+        label_options = to_pandas(index.label_options(query))
+
+        if isinstance(index, MultiIndex):
+            self._index = pd.MultiIndex.from_product(label_options, names=index.names)
         else:
-            index = self.schema.index_for(fields[0])
-            unique = [index.to_pandas(vi) for vi in unique]
-            self._index = pd.Index(unique, name=fields[0])
-        
+            self._index = pd.Index(label_options, name=index.name)
+
     def __getitem__(self, index: Tuple[IndexLabel, ...]) -> "RemoteSeries":
         if isinstance(index, str) and index in self.columns:
             return RemoteSeries(self, index)
@@ -195,7 +202,7 @@ class RemoteFrame:
         raise KeyError(f"{index} is not a dataframe column.")
 
     def __call__(self, column: str, **index: IndexLabel) -> pd.DataFrame:
-        index = tuple(index.get(k, None) for k in self.index.names)
+        index = tuple(index.get(k, None) for k in self.index_names)
         return self.at[index, column]
 
     def __dir__(self) -> List[str]:
@@ -204,15 +211,15 @@ class RemoteFrame:
     def __getattr__(self, name: str) -> "RemoteSeries":
         if name != "columns" and name in self.columns:
             return self[name]
-        raise AttributeError(name)
+        return super().__getattribute__(name)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return self.size
 
-    def __repr__(self) -> str: # pragma: no cover
-        return ( 
+    def __repr__(self) -> str:  # pragma: no cover
+        return (
             f"{self.__class__.__name__}("
-            f"index={self.index.names},"
+            f"index={self.index_names},"
             f"columns={self.columns},"
             f"datasource={self._datasource},"
             f"selection={self._labels})"
@@ -235,11 +242,11 @@ class RemoteSeries:
         return self.frame.sel(*index)[self.column]
 
     @property
-    def loc(self) -> 'SeriesLocIndexer':
+    def loc(self) -> "SeriesLocIndexer":
         return SeriesLocIndexer(self)
 
     @property
-    def iloc(self) -> 'SeriesILocIndexer':
+    def iloc(self) -> "SeriesILocIndexer":
         return SeriesILocIndexer(self)
 
     @property
@@ -249,6 +256,10 @@ class RemoteSeries:
     @property
     def index(self):
         return self.frame.index
+    
+    @property
+    def index_names(self):
+        return self.frame.index_names
 
     def sel(self, *args: IndexLabel, **kwargs: IndexLabel) -> pd.DataFrame:
         rf = self.frame.sel(*args, **kwargs)
@@ -270,7 +281,7 @@ class RemoteSeries:
     def max(self):
         return self.frame.max(self.column)
 
-    def __repr__(self) -> str: # pragma: no cover
+    def __repr__(self) -> str:  # pragma: no cover
         return f"RemoteSeries(index={self.frame.index.names}," f"column={self.column})"
 
     def __len__(self):
@@ -283,9 +294,9 @@ class Indexer:
 
 
 class ILocIndexer(Indexer):
-
-    def __getitem__(self, index: Union[int,slice]) -> pd.DataFrame:
+    def __getitem__(self, index: Union[int, slice]) -> pd.DataFrame:
         return self.obj.isel(index)
+
 
 class LocIndexer(Indexer):
     def __call__(self, *args: IndexLabel, **kwargs: IndexLabel) -> pd.DataFrame:
@@ -295,7 +306,7 @@ class LocIndexer(Indexer):
         columns = None
 
         if isinstance(index, tuple) and len(index) == 2:
-            index, columns = index
+            index, columns = index[0], index[1]
             if not isinstance(columns, list):
                 columns = [columns]
             if not all([c in self.obj.columns for c in columns]):
@@ -330,24 +341,6 @@ class LocIndexer(Indexer):
         return self.obj.set(*key, **value)
 
 
-class SeriesLocIndexer(Indexer):
-    def __init__(self, obj: RemoteSeries):
-        super().__init__(obj)
-
-    def __getitem__(self, index: IndexLabel) -> pd.DataFrame:
-        return self.obj.sel(*index)
-
-    def __setitem__(self, index: IndexLabel, value: Any):
-        self.obj.set(*index, value)
-
-    def __repr__(self) -> str:
-        return f"SeriesLocIndexer(index={self.obj.index.names})"
-
-class SeriesILocIndexer(Indexer):
-
-    def __getitem__(self, index: Union[int,slice]) -> pd.DataFrame:
-        return self.obj.iloc[index][self.column]
-
 class AtIndexer(Indexer):
     def __getitem__(self, key: Tuple[Tuple[IndexLabel, ...], str]) -> Any:
 
@@ -368,26 +361,49 @@ class AtIndexer(Indexer):
         if any([isinstance(idx, (slice, list, type(None))) for idx in index]):
             raise KeyError(f"{index} is not unique index.")
 
-        if len(index) < len(self.obj.index.names):
+        if len(index) < len(self.obj.index_names):
             KeyError(f"{index} is an under defined index.")
 
         return self.obj.sel(*index)[column].iloc[0]
 
 
-class SeriesAtLocator(AtIndexer):
+class SeriesIndexer:
     def __init__(self, obj: RemoteSeries):
-        super().__init__(obj)
+        self.obj = obj
 
-    def __getitem__(self, index: IndexLabel) -> Any:
+class SeriesLocIndexer(SeriesIndexer):
+
+    def __getitem__(self, index: Union[Tuple[IndexLabel],IndexLabel]) -> pd.DataFrame:
+        if not isinstance(index, tuple):
+            index = (index, )
+        return self.obj.sel(*index)
+
+    def __setitem__(self, index: Union[Tuple[IndexLabel],IndexLabel], value: Any):
+        if not isinstance(index, tuple):
+            index = (index, )
+        self.obj.set(*index, value)
+
+    def __repr__(self) -> str:
+        return f"SeriesLocIndexer(index={self.obj.index_names})"
+
+
+class SeriesILocIndexer(SeriesIndexer):
+    def __getitem__(self, index: Union[int, slice]) -> pd.DataFrame:
+        return self.obj.iloc[index][self.obj.column]
+
+
+class SeriesAtLocator(SeriesIndexer):
+
+    def __getitem__(self, index: Union[IndexLabel,Tuple[IndexLabel,...]]) -> Any:
         if not isinstance(index, tuple):
             index = (index,)
 
         if any([isinstance(idx, (slice, list, type(None))) for idx in index]):
             raise KeyError(f"{index} is not a unique index.")
 
-        if len(index) < len(self.obj.index.names):
+        if len(index) < len(self.obj.index_names):
             KeyError(f"{index} is an under defined index.")
         return self.obj.frame.at[index, self.obj.column]
 
-    def __repr__(self) -> str: # pragma: no cover
-        return f"SeriesAtLocator(index={self.obj.index.names})"
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"SeriesAtLocator(index={self.obj.index_names})"

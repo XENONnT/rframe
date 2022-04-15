@@ -1,63 +1,68 @@
 import datetime
-from functools import singledispatch
+import pymongo
 import numbers
+
+from functools import singledispatch
+from itertools import product
+
 from typing import List, Union
-from warnings import warn
 from loguru import logger
 
 import pandas as pd
 from pydantic import BaseModel
 
+from pymongo.collection import Collection
+from ..types import Interval
+
 from ..indexes import Index, InterpolatingIndex, IntervalIndex, MultiIndex
 from ..utils import singledispatchmethod
 from .base import BaseDataQuery, DatasourceInterface
 
+
 query_precendence = {
     Index: 1,
     IntervalIndex: 2,
-    InterpolatingIndex:3, 
+    InterpolatingIndex: 3,
 }
 
-try:
-    import pymongo
-    from pymongo.collection import Collection
 
-    class MultiMongoAggregation(BaseDataQuery):
-        aggregations: list
+class MultiMongoAggregation(BaseDataQuery):
+    aggregations: list
 
-        def __init__(self, collection: Collection, aggregations: list):
-            if not isinstance(collection, Collection):
-                raise TypeError(
-                    f"collection must be a pymongo Collection, got {type(collection)}."
-                )
-            self.collection = collection
-            self.aggregations = aggregations
+    def __init__(self, collection: Collection, aggregations: list):
+        if not isinstance(collection, Collection):
+            raise TypeError(
+                f"collection must be a pymongo Collection, got {type(collection)}."
+            )
+        self.collection = collection
+        self.aggregations = aggregations
 
-        def execute(self, limit=None, skip=None):
-            logger.debug('Executing multi mongo aggregation.')
-            results = []
-            for agg in self.aggregations:
-                results.extend(agg.execute(self.collection, limit=limit, skip=skip))
-            skip = 0 if skip is None else skip
+    def execute(self, limit=None, skip=None):
+        logger.debug("Executing multi mongo aggregation.")
+        results = []
+        for agg in self.aggregations:
+            results.extend(agg.execute(self.collection, limit=limit, skip=skip))
+        skip = 0 if skip is None else skip
 
-            if limit is not None:
-                return results[skip:limit+skip]
+        if limit is not None:
+            return results[skip : limit + skip]
 
-            return results
+        return results
 
-        def logical_or(self, other: "MultiMongoAggregation"):
-            if isinstance(other, MultiMongoAggregation):
-                extra = other.aggregations
-            else:
-                extra = [other]
+    def logical_or(self, other: "MultiMongoAggregation"):
+        if isinstance(other, MultiMongoAggregation):
+            extra = other.aggregations
+        else:
+            extra = [other]
 
-            return MultiMongoAggregation(self.aggregations + extra)
+        return MultiMongoAggregation(self.collection, self.aggregations + extra)
 
-        def __or__(self, other):
-            return self.logical_or(other)
+    def __or__(self, other):
+        return self.logical_or(other)
 
-        def __add__(self, other):
-            return self.logical_or(other)
+    def __add__(self, other):
+        return self.logical_or(other)
+
 
     class MongoAggregation(BaseDataQuery):
         pipeline: list
@@ -124,8 +129,9 @@ try:
                 pipeline.append({
                     "$group": {
                         "_id": "$" + field,
-                        'first': { '$first':  "$" + field },
+                        "first": {"$first": "$" + field},
                     }
+
                     })
                     
                 results[field] = [doc['first'] for doc in 
@@ -176,60 +182,10 @@ try:
 
         def count(self):
             pipeline = list(self.pipeline)
-            pipeline.append({"$count": "count"})
+            pipeline.append({"$sort": {field: -1}})
+            pipeline.append({"$limit": 1})
+            pipeline.append({"$project": {"_id": 0}})
             try:
-                result = next(self.collection.aggregate(pipeline, allowDiskUse=True))
-            except StopIteration:
-                return 0
-            return result.get('count', 0)
-
-        def logical_and(self, other):
-            index = MultiIndex(self.index, other.index)
-            labels = dict(self.labels, **other.labels)
-            return MongoAggregation(index,
-                                    labels,
-                                    self.collection, 
-                                    self.pipeline + other.pipeline)
-
-        def logical_or(self, other):
-            if isinstance(other, MongoAggregation):
-                return MultiMongoAggregation([self, other])
-
-            if isinstance(other, MultiMongoAggregation):
-                return other + self
-
-        def __add__(self, other):
-            return self.logical_or(other)
-
-        def __and__(self, other):
-            return self.logical_and(other)
-
-        def __mul__(self, other):
-            return self.logical_and(other)
-
-    @DatasourceInterface.register_interface(pymongo.collection.Collection)
-    class MongoInterface(DatasourceInterface):
-
-        @classmethod
-        def from_url(cls, source: str,
-                    database: str = None,
-                    collection: str = None,
-                    **kwargs):
-            if source.startswith("mongodb"):
-                if database is None:
-                    raise ValueError("database must be specified")
-                if collection is None:
-                    raise ValueError("collection must be specified")
-                source = pymongo.MongoClient(source)[database][collection]
-                return cls(source)
-
-            raise NotImplementedError
-
-        @singledispatchmethod
-        def compile_query(self, index, label):
-            raise NotImplementedError(
-                f"{self.__class__.__name__} does not support {type(index)} indexes."
-            )
 
         def simple_multi_query(self, index, labels):
             pipeline = []
@@ -296,13 +252,51 @@ try:
             elif isinstance(label, dict):
                 match = {f"{name}.{k}": v for k, v in label.items()}
 
-            pipeline = []
-            if label is not None:
-                pipeline.append({"$match": match})
+    def min(self, fields: Union[str, List[str]]):
+        if isinstance(fields, str):
+            fields = [fields]
+        results = {}
+        for field in fields:
+            pipeline = list(self.pipeline)
+            pipeline.append({"$sort": {field: 1}})
+            pipeline.append({"$limit": 1})
+            pipeline.append({"$project": {"_id": 0}})
+            try:
+                results[field] = next(
+                    self.collection.aggregate(pipeline, allowDiskUse=True)
+                )[field]
+            except (StopIteration, KeyError):
+                results[field] = None
 
-            labels = {name: label}
+        results = from_mongo(results)
 
-            return MongoAggregation(index, labels, self.source, pipeline)
+        if len(fields) == 1:
+            return results[fields[0]]
+        return results
+
+    def count(self):
+        pipeline = list(self.pipeline)
+        pipeline.append({"$count": "count"})
+        try:
+            result = next(self.collection.aggregate(pipeline, allowDiskUse=True))
+        except StopIteration:
+            return 0
+        return result.get("count", 0)
+
+    def logical_and(self, other):
+        index = MultiIndex(self.index, other.index)
+        labels = dict(self.labels, **other.labels)
+        return MongoAggregation(
+            index, labels, self.collection, self.pipeline + other.pipeline
+        )
+
+    def logical_or(self, other):
+        if isinstance(other, MongoAggregation):
+            return MultiMongoAggregation(self.collection, [self, other])
+
+        if isinstance(other, MultiMongoAggregation):
+            return other + self
+
 
         @compile_query.register(InterpolatingIndex)
         def build_interpolation_query(self, index: InterpolatingIndex, labels: dict):
@@ -336,8 +330,6 @@ try:
                                                        other_fields=other_fields,
                                                        extrapolate=index.can_extrapolate(labels),
                                                        groupby=other_index_names)
-
-            return MongoAggregation(index, labels, self.source, pipeline)
 
         @compile_query.register(IntervalIndex)
         def build_interval_query(self, index: IntervalIndex, labels: dict):
@@ -385,11 +377,52 @@ try:
                     
                 ]
             else:
-                pipeline = []
+                label = list(range(start, stop, step))
 
-            labels = {index.name: intervals}
+        match = {name: label}
 
+        if isinstance(label, list):
+            # support querying multiple values
+            # in the same request
+            match = {name: {"$in": label}}
+
+        elif isinstance(label, dict):
+            match = {f"{name}.{k}": v for k, v in label.items()}
+
+        pipeline = []
+        if label is not None:
+            pipeline.append({"$match": match})
+
+        labels = {name: label}
+
+        return MongoAggregation(index, labels, self.source, pipeline)
+
+    @compile_query.register(InterpolatingIndex)
+    def build_interpolation_query(self, index, label, others=None):
+        """For interpolation we match the values directly before and after
+        the value of interest. For each value we take the closest document on either side.
+        """
+        logger.debug(
+            "Building mongo interpolating-query for index: "
+            f"{index} with label: {label}"
+        )
+
+        label = to_mongo(label)
+
+        if label is None:
+            labels = {index.name: label}
+            return MongoAggregation(index, labels, self.source, [])
+        limit = 1 if others is None else others
+
+        if not isinstance(label, list):
+            pipelines = dict(
+                before=mongo_before_query(index.name, label, limit=limit),
+                after=mongo_after_query(index.name, label, limit=limit),
+            )
+            pipeline = merge_pipelines(pipelines)
+            labels = {index.name: label}
             return MongoAggregation(index, labels, self.source, pipeline)
+
 
         def insert(self, doc):
             """We want the client logic to be agnostic to
@@ -417,24 +450,91 @@ try:
         
         update = insert
 
-        def ensure_index(self, names, order=pymongo.ASCENDING):
-            self.source.ensure_index([(name, order) for name in names])
+        labels = {index.name: label}
 
-        def delete(self, doc):
-            index = to_mongo(doc.index_labels)
-            return self.source.delete_one(index)
+    @compile_query.register(IntervalIndex)
+    def build_interval_query(self, index, label, others=None):
+        """Query overlaping documents with given interval, supports multiple
+        intervals as well as zero length intervals (left==right)
+        multiple overlap queries are joined with the $or operator
+        """
 
-        def initdb(self, schema):
-            index_names = list(schema.get_index_fields())
-            self.ensure_index(index_names)
+        logger.debug(
+            "Building mongo interval-query for index: " f"{index} with label: {label}"
+        )
 
-except ImportError:
+        if isinstance(label, list):
+            intervals = label
+        else:
+            intervals = [label]
 
-    class MongoInterface:
-        def __init__(self) -> None:
-            raise TypeError("Cannot use mongo interface with pymongo installed.")
+        intervals = to_mongo(intervals)
 
-    warn("Pymongo not found, cannot register mongodb interface.")
+        queries = []
+        for interval in intervals:
+            if interval is None:
+                continue
+            if isinstance(interval, tuple) and all([i is None for i in interval]):
+                continue
+
+            query = mongo_overlap_query(index, interval)
+            if query:
+                queries.append(query)
+
+        if queries:
+            pipeline = [
+                {
+                    "$match": {
+                        # support querying for multiple values
+                        # in a single pipeline
+                        "$or": queries,
+                    }
+                },
+            ]
+        else:
+            pipeline = []
+
+        labels = {index.name: intervals}
+
+        return MongoAggregation(index, labels, self.source, pipeline)
+
+    def insert(self, doc):
+        """We want the client logic to be agnostic to
+        whether the value being replaced is actually stored in the DB or
+        was inferred from e.g interpolation.
+        The find_one_and_replace(upsert=True) logic is the best match
+        for the behavior we want even though it wasts an insert operation
+        when a document already exists.
+        FIXME: Maybe we can optimize this with an pipeline to
+        avoid replacing existing documents with a copy.
+        """
+        from rframe.schema import InsertionError
+
+        index = to_mongo(doc.index_labels)
+        try:
+            doc = self.source.find_one_and_update(
+                index,
+                {"$set": to_mongo(doc.dict())},
+                projection={"_id": False},
+                upsert=True,
+                return_document=pymongo.ReturnDocument.AFTER,
+            )
+            return doc
+        except Exception as e:
+            raise InsertionError(f"Mongodb has rejected this insertion:\n {e} ")
+
+    update = insert
+
+    def ensure_index(self, names, order=pymongo.ASCENDING):
+        self.source.ensure_index([(name, order) for name in names])
+
+    def delete(self, doc):
+        index = to_mongo(doc.index_labels)
+        return self.source.delete_one(index)
+
+    def initdb(self, schema):
+        index_names = list(schema.get_index_fields())
+        self.ensure_index(index_names)
 
 
 def mongo_overlap_query(index, interval):
@@ -536,6 +636,7 @@ def mongo_before_query(name, value, groupby=None):
             # make the documents the new root, discarding the groupby value
             "$replaceRoot": {"newRoot": "$doc"},
         },
+
         
         ])
     else:
@@ -686,6 +787,7 @@ def mongo_interpolating_aggregation(name, values, numeric_fields=(), groupby=(),
     if interpolate:
         pipeline += interpolation_stage
 
+
     return pipeline
 
 
@@ -693,25 +795,31 @@ def mongo_interpolating_aggregation(name, values, numeric_fields=(), groupby=(),
 def to_mongo(obj):
     return obj
 
+
 @to_mongo.register(dict)
 def to_mongo_dict(obj: dict):
     return {k: to_mongo(v) for k, v in obj.items()}
+
 
 @to_mongo.register(list)
 def to_mongo_list(obj):
     return [to_mongo(v) for v in obj]
 
+
 @to_mongo.register(tuple)
 def to_mongo_tuple(obj):
     return tuple(to_mongo(v) for v in obj)
+
 
 @to_mongo.register(BaseModel)
 def to_mongo_interval(obj):
     return to_mongo(obj.dict())
 
+
 @to_mongo.register(pd.DataFrame)
 def to_mongo_df(df):
     return to_mongo(df.to_dict(orient="records"))
+
 
 @to_mongo.register(datetime.datetime)
 def to_mongo_datetime(obj):
@@ -721,16 +829,19 @@ def to_mongo_datetime(obj):
 @to_mongo.register(datetime.timedelta)
 def to_mongo_timedelta(obj):
     # mongodb datetime has millisecond resolution
-    seconds = int(obj.total_seconds()*1e3)/1e3
+    seconds = int(obj.total_seconds() * 1e3) / 1e3
     return datetime.timedelta(seconds=seconds)
 
+  
 @to_mongo.register(pd.Timestamp)
 def to_mongo_timestamp(obj):
     return to_mongo(obj.to_pydatetime())
 
+
 @to_mongo.register(pd.Timedelta)
 def to_mongo_timedelta(obj):
     return to_mongo(obj.to_pytimedelta())
+
 
 @to_mongo.register(numbers.Integral)
 def to_mongo_int(obj):
@@ -744,14 +855,20 @@ def to_mongo_float(obj):
 def from_mongo(obj):
     return obj
 
+
 @from_mongo.register(list)
 def from_mongo_list(obj):
     return [from_mongo(v) for v in obj]
+
 
 @from_mongo.register(tuple)
 def from_mongo_tuple(obj):
     return tuple(from_mongo(v) for v in obj)
 
+
 @from_mongo.register(dict)
 def from_mongo_dict(obj):
+    if len(obj) == 2 and "left" in obj and "right" in obj:
+        return Interval[obj["left"], obj["right"]]
+
     return {k: from_mongo(v) for k, v in obj.items()}

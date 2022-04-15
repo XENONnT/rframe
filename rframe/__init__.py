@@ -2,17 +2,22 @@
 
 __author__ = """Yossi Mosbacher"""
 __email__ = "joe.mosbacher@gmail.com"
-__version__ = "0.1.13"
+__version__ = "0.1.16"
 
-from . import schema, indexes, utils
+from loguru import logger
+
+from . import schema, indexes, utils, dispatchers
 
 from .indexes import Index, InterpolatingIndex, IntervalIndex
 from .types import Interval, IntegerInterval, TimeInterval
 from .rframe import RemoteFrame
 from .schema import BaseSchema
 from .rest_client import BaseRestClient, RestClient
-from .rest_server import SchemaRouter
 from .utils import jsonable
-from loguru import logger
+
+try:
+    from .rest_server import SchemaRouter
+except ImportError:
+    pass
 
 logger.disable("rframe")

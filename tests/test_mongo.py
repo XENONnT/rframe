@@ -4,7 +4,7 @@ from typing import List
 from loguru import logger
 import pandas as pd
 import pymongo
-from hypothesis import assume, given, settings
+from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 
 import rframe
@@ -17,7 +17,6 @@ DB_NAME = "rframe_tests"
 COLLECTION_NAME = "mongo_test"
 
 MONGO_URI = os.environ.get("TEST_MONGO_URI")
-
 
 
 @unittest.skipIf(MONGO_URI is None, "No access to test database")
@@ -64,20 +63,27 @@ class TestMongo(unittest.TestCase):
         InterpolatingSchema.test(self, datasource, docs)
 
     @given(IntegerIntervalSchema.list_strategy())
-    @settings(deadline=None)
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     def test_integer_interval(self, docs: IntegerIntervalSchema):
         self.collection.delete_many({})
         datasource = self.collection
         IntegerIntervalSchema.test(self, datasource, docs)
 
     @given(TimeIntervalSchema.list_strategy())
-    @settings(deadline=None)
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     def test_time_interval(self, docs: TimeIntervalSchema):
         self.collection.delete_many({})
         datasource = self.collection
         TimeIntervalSchema.test(self, datasource, docs)
 
     def test_interface_from_url(self):
-        interface = get_interface('mongodb://localhost', database='test', collection='test')
+        interface = get_interface(
+            "mongodb://localhost", database="test", collection="test"
+        )
         self.assertIsInstance(interface, rframe.interfaces.MongoInterface)
 
+    def test_ensure_index(self):
+        schema = AdvancedMultiIndexSchema
+        schema.ensure_index(self.collection)
+        name = "_".join([f"{name}_1" for name in schema.get_index_fields()])
+        self.assertIn(name, self.collection.index_information())

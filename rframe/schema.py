@@ -5,10 +5,9 @@ from numbers import Number
 import pandas as pd
 from pydantic import BaseModel, ValidationError
 from pydantic.fields import FieldInfo, ModelField
-from typing import Dict, List, Mapping, Optional, Union
+from typing import Any, Dict, List, Mapping, Optional, Union, Generator
 
-from rframe.utils import are_equal
-
+from .dispatchers import are_equal
 from .indexes import BaseIndex, Index, MultiIndex
 from .interfaces import get_interface
 from .interfaces.pandas import to_pandas
@@ -17,14 +16,18 @@ from .interfaces.pandas import to_pandas
 class EditError(Exception):
     pass
 
+
 class InsertionError(EditError):
     pass
+
 
 class UpdateError(EditError):
     pass
 
+
 class DeletionError(EditError):
     pass
+
 
 class BaseSchema(BaseModel):
     class Config:
@@ -68,13 +71,17 @@ class BaseSchema(BaseModel):
         params = []
         for name in cls.__fields__:
             for type_ in cls.mro():
-                if name in getattr(type_, '__annotations__', {}):
+                if name in getattr(type_, "__annotations__", {}):
                     label_annotation = type_.__annotations__[name]
-                    annotation = Optional[Union[label_annotation,List[label_annotation]]]
-                    param = inspect.Parameter(name,
-                                            inspect.Parameter.POSITIONAL_OR_KEYWORD, 
-                                            default=default,
-                                            annotation=annotation)
+                    annotation = Optional[
+                        Union[label_annotation, List[label_annotation]]
+                    ]
+                    param = inspect.Parameter(
+                        name,
+                        inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                        default=default,
+                        annotation=annotation,
+                    )
                     params.append(param)
                     break
         return inspect.Signature(params)
@@ -84,7 +91,7 @@ class BaseSchema(BaseModel):
         index_fields = cls.get_index_fields()
         indexes = []
         for name, field in index_fields.items():
-            index = field.field_info
+            index: BaseIndex = field.field_info
             index.__set_name__(cls, name)
             indexes.append(index)
 
@@ -97,17 +104,16 @@ class BaseSchema(BaseModel):
 
     @classmethod
     def index_for(cls, name):
-        ''' Fetches index instance for the given field
+        """Fetches index instance for the given field
         If field_info is index type, returns it
         otherwise return a simple Index instance.
         This allows for queries on non-index fields.
-        '''
+        """
         if isinstance(name, list):
             return MultiIndex(*[cls.index_for(n) for n in name])
 
         if name not in cls.__fields__:
-            raise KeyError(f'{name} is not a valid' 
-                           f'field for schema {cls.__name__}')
+            raise KeyError(f"{name} is not a valid" f"field for schema {cls.__name__}")
 
         field_info = cls.field_info().get(name, None)
         if not isinstance(field_info, BaseIndex):
@@ -117,8 +123,7 @@ class BaseSchema(BaseModel):
 
     @classmethod
     def validate_partial(cls, allow_None=True, **kwargs):
-        ''' Perform validation on subset of fields
-        '''
+        """Perform validation on subset of fields"""
         validated = {}
         for name, field in cls.__fields__.items():
             if name not in kwargs:
@@ -127,7 +132,7 @@ class BaseSchema(BaseModel):
             if val is None and allow_None:
                 validated[name] = val
                 continue
-            val, error = field.validate(val, validated, loc='LabelType')
+            val, error = field.validate(val, validated, loc=name)
             if error:
                 raise ValidationError([error])
             validated[name] = val
@@ -139,9 +144,9 @@ class BaseSchema(BaseModel):
 
     @classmethod
     def rframe(cls, datasource=None):
-        ''' Contruct a RemoteFrame from this schema and
+        """Contruct a RemoteFrame from this schema and
         datasource.
-        '''
+        """
         import rframe
 
         if datasource is None:
@@ -150,12 +155,12 @@ class BaseSchema(BaseModel):
 
     @classmethod
     def extract_labels(cls, **kwargs):
-        ''' Extract query labels from kwargs
+        """Extract query labels from kwargs
 
         returns extracted labels and remaining kwargs
-        '''
+        """
         labels = {}
-        
+
         for name, field in cls.__fields__.items():
             label = kwargs.pop(name, None)
             if label is None:
@@ -186,44 +191,56 @@ class BaseSchema(BaseModel):
 
         label = index.validate_label(label)
 
-        kwargs = {k.lstrip('_'):v for k,v in kwargs.items()}
+        kwargs = {k.lstrip("_"): v for k, v in kwargs.items()}
         interface = get_interface(datasource, **kwargs)
 
         query = interface.compile_query(index, label)
         return query
 
     @classmethod
-    def _find(cls, datasource=None, _skip=None, _limit=None, 
-            _sort=None, **labels) -> List["BaseSchema"]:
-        ''' Internal find function, performs data validation but
+    def _find(
+        cls, datasource=None, _skip=None, _limit=None, _sort=None, **labels
+    ) -> Generator[dict, None, None]:
+        """Internal find function, performs data validation but
         returns raw dicts, not schema instances.
-        '''
+        """
 
         query = cls.compile_query(datasource=datasource, **labels)
         for doc in query.iter(limit=_limit, skip=_skip, sort=_sort):
             yield cls(**doc).dict()
 
     @classmethod
-    def find(cls, datasource=None, _skip=None,
-                _limit=None, _sort=None, **labels) -> List["BaseSchema"]:
-        ''' Find documents in datasource matching the given labels
+    def find(
+        cls, datasource=None, _skip=None, _limit=None, _sort=None, **labels
+    ) -> List["BaseSchema"]:
+        """Find documents in datasource matching the given labels
         returns List[BaseSchema]
-        '''
+        """
 
-        return [cls(**doc) for doc in cls._find(datasource, _skip=_skip,
-                                                _limit=_limit, _sort=_sort, **labels)]
+        return [
+            cls(**doc)
+            for doc in cls._find(
+                datasource, _skip=_skip, _limit=_limit, _sort=_sort, **labels
+            )
+        ]
 
     @classmethod
-    def find_iter(cls, datasource=None, _skip=None,
-                    _limit=None, _sort=None, **labels):
-        for doc in cls._find(datasource, _skip=_skip,
-                            _limit=_limit, _sort=_sort, **labels):
+    def find_iter(cls, datasource=None, _skip=None, _limit=None, _sort=None, **labels):
+        for doc in cls._find(
+            datasource, _skip=_skip, _limit=_limit, _sort=_sort, **labels
+        ):
             yield cls(**doc)
 
     @classmethod
-    def find_df(cls, datasource=None, _skip=None, _limit=None, _sort=None, **labels) -> pd.DateOffset:
-        docs = [d.pandas_dict() for d in cls.find(datasource, _skip=_skip,
-                                                 _limit=_limit, _sort=_sort, **labels)]
+    def find_df(
+        cls, datasource=None, _skip=None, _limit=None, _sort=None, **labels
+    ) -> pd.DateOffset:
+        docs = [
+            d.pandas_dict()
+            for d in cls.find(
+                datasource, _skip=_skip, _limit=_limit, _sort=_sort, **labels
+            )
+        ]
         df = pd.json_normalize(docs)
         if not len(df):
             df = df.reindex(columns=list(cls.__fields__))
@@ -233,10 +250,15 @@ class BaseSchema(BaseModel):
         return df.set_index(index_fields)
 
     @classmethod
-    def find_one(cls, datasource=None, _skip=None, _sort=None, **labels) -> "BaseSchema":
-        docs = cls.find(datasource=datasource, _skip=_skip, _limit=1, _sort=_sort, **labels)
+    def find_one(
+        cls, datasource=None, _skip=None, _sort=None, **labels
+    ) -> Optional["BaseSchema"]:
+        docs = cls.find(
+            datasource=datasource, _skip=_skip, _limit=1, _sort=_sort, **labels
+        )
         if docs:
             return docs[0]
+        return None
 
     @classmethod
     def from_pandas(cls, record):
@@ -263,10 +285,10 @@ class BaseSchema(BaseModel):
     def ensure_index(cls, datasource, **kwargs):
         interface = get_interface(datasource, **kwargs)
         names = list(cls.get_index_fields())
-        return interface.ensure_index(datasource, names)
+        return interface.ensure_index(names)
 
     @classmethod
-    def unique(cls, datasource=None, fields: Union[str,List[str]] = None, **labels):
+    def unique(cls, datasource=None, fields: Union[str, List[str]] = None, **labels):
         if fields is None:
             fields = list(cls.get_column_fields())
         elif isinstance(fields, str):
@@ -282,7 +304,7 @@ class BaseSchema(BaseModel):
         return unique
 
     @classmethod
-    def min(cls, datasource=None, fields: Union[str,List[str]] = None, **labels):
+    def min(cls, datasource=None, fields: Union[str, List[str]] = None, **labels):
         if fields is None:
             fields = list(cls.get_column_fields())
         elif isinstance(fields, str):
@@ -297,7 +319,7 @@ class BaseSchema(BaseModel):
         return min
 
     @classmethod
-    def max(cls, datasource=None, fields: Union[str,List[str]] = None, **labels):
+    def max(cls, datasource=None, fields: Union[str, List[str]] = None, **labels):
         if fields is None:
             fields = list(cls.get_column_fields())
         elif isinstance(fields, str):
@@ -310,7 +332,7 @@ class BaseSchema(BaseModel):
         else:
             max = cls.validate_partial(**{fields[0]: max})
         return max
-        
+
     @classmethod
     def count(cls, datasource=None, **labels):
         query = cls.compile_query(datasource, **labels)
@@ -327,8 +349,7 @@ class BaseSchema(BaseModel):
     @property
     def column_values(self):
         values = self.dict()
-        return {attr: values[attr]
-                for attr in self.get_column_fields()}
+        return {attr: values[attr] for attr in self.get_column_fields()}
 
     def save(self, datasource=None, **kwargs):
         if datasource is None:
@@ -342,7 +363,7 @@ class BaseSchema(BaseModel):
                 interface.insert(self)
             except Exception as e:
                 self.__post_insert(datasource, exception=e)
-                raise  e
+                raise e
             self.__post_insert(datasource)
 
         elif len(existing) == 1:
@@ -356,9 +377,11 @@ class BaseSchema(BaseModel):
             existing[0].__post_update(datasource, self)
         else:
             # Multiple documents found, raise exception
-            raise UpdateError('Multiple documents match document '
-                                 f'index ({self.index_labels}). '
-                                 'Multiple update is not supported.')
+            raise UpdateError(
+                "Multiple documents match document "
+                f"index ({self.index_labels}). "
+                "Multiple update is not supported."
+            )
 
     def delete(self, datasource=None, **kwargs):
         if datasource is None:
@@ -372,112 +395,111 @@ class BaseSchema(BaseModel):
             raise e
 
     def __pre_insert(self, datasource):
-        '''This method is called  pre insertion 
+        """This method is called  pre insertion
         if self.save(datasource) was called and a query on datasource
         with self.index_labels did not return any documents.
 
         raises an InsertionError if user defined checks fail.
-        '''
+        """
         try:
             self.pre_insert(datasource)
         except Exception as e:
-            raise InsertionError(f'Cannot insert new document ({self}).'
-                                 f'The schema raised the following exception: {e}')
+            raise InsertionError(
+                f"Cannot insert new document ({self})."
+                f"The schema raised the following exception: {e}"
+            )
 
     def __post_insert(self, datasource, exception=None):
-        '''This method is called post insertion 
+        """This method is called post insertion
         runs the schemas post insertion hook and returns
-        '''
+        """
         self.post_insert(datasource, exception)
-       
 
     def __pre_update(self, datasource, new):
-        '''This method is called if new.save(datasource)
+        """This method is called if new.save(datasource)
         was called and a query on datasource
         with new.index_labels returned this document.
 
         raises an UpdateError if user defined checks fail.
-        '''
+        """
         try:
             self.pre_update(datasource, new=new)
         except Exception as e:
-            raise UpdateError(f"Cannot update existing instance ({self}) "
-                              f"with new instance ({new}), the schema "
-                              f"raised the following exception: {e}")
+            raise UpdateError(
+                f"Cannot update existing instance ({self}) "
+                f"with new instance ({new}), the schema "
+                f"raised the following exception: {e}"
+            )
 
     def __post_update(self, datasource, new, exception=None):
-        '''This method is called after updates 
+        """This method is called after updates
         runs the schemas post update hook and returns
-        '''
+        """
         self.post_update(datasource, new, exception)
 
     def __pre_delete(self, datasource):
-        '''This method is called pre deletion 
+        """This method is called pre deletion
         if self.delete(datasource) was called and a query on datasource
         with self.index_labels returned this document.
 
         raises an DeletionError if user defined checks fail.
-        '''
+        """
         try:
             self.pre_delete(datasource)
         except Exception as e:
-            raise DeletionError(f'Cannot delete document ({self}).'
-                                 f'The schema raised the following exception: {e}')
+            raise DeletionError(
+                f"Cannot delete document ({self})."
+                f"The schema raised the following exception: {e}"
+            )
 
     def __post_delete(self, datasource, exception=None):
-        '''This method is called post deletion 
+        """This method is called post deletion
         runs the schemas post deletion hook and returns
-        '''
+        """
         self.post_delete(datasource, exception)
 
     def pre_insert(self, datasource):
-        '''Pre insert hook for user 
+        """Pre insert hook for user
         defined checks to perform
         prior to document insertion.
         Should raise an exception if insertion
         is disallowed.
-        '''
+        """
         pass
 
     def post_insert(self, datasource, exception=None):
-        '''User defined hook to perform
+        """User defined hook to perform
         after document insertion.
-        '''
+        """
         pass
-    
+
     def pre_update(self, datasource, new):
-        '''User defined checks to perform
+        """User defined checks to perform
         prior to document update.
         Should raise an exception if update
         is disallowed.
-        '''
+        """
         pass
 
     def post_update(self, datasource, new, exception=None):
-        '''User defined hook to perform
+        """User defined hook to perform
         after document updates.
-        '''
+        """
         pass
-    
+
     def pre_delete(self, datasource):
-        '''User defined checks to perform
+        """User defined checks to perform
         prior to document deletion.
         Should raise an exception if deletion
         is disallowed.
-        '''
+        """
         pass
 
     def post_delete(self, datasource, exception=None):
-        '''User defined hook to perform
+        """User defined hook to perform
         after document deletion.
-        '''
+        """
         pass
-
-    def delete(self, datasource=None):
-        if datasource is None:
-            datasource = self.default_datasource()
-        interface = get_interface(datasource)
-        return interface.delete(self)
 
     def same_values(self, other):
         if other is None:
@@ -504,7 +526,7 @@ class BaseSchema(BaseModel):
             indexes = indexes[0]
         return pd.DataFrame().reindex(columns=columns).set_index(indexes)
 
-    def to_pandas(self):
+    def dframe(self):
         index_fields = list(self.get_index_fields())
         if len(index_fields) == 1:
             index_fields = index_fields[0]
@@ -518,21 +540,21 @@ class BaseSchema(BaseModel):
     def raw_index_labels(self):
         return tuple(getattr(self, k) for k in self.get_index_fields())
 
-    def __lt__(self, other: 'BaseSchema'):
+    def __lt__(self, other: "BaseSchema"):
         return self.raw_index_labels < other.raw_index_labels
 
-    def __le__(self, other: 'BaseSchema'):
+    def __le__(self, other: "BaseSchema"):
         if not isinstance(other, BaseSchema):
-            raise TypeError('')
+            raise TypeError("")
         return self.raw_index_labels <= other.raw_index_labels
 
-    def __eq__(self, other: 'BaseSchema'):
+    def __eq__(self, other: Any):
         if not isinstance(other, BaseSchema):
             False
         return are_equal(self.dict, other.dict())
 
-    def __gt__(self, other: 'BaseSchema'):
+    def __gt__(self, other: "BaseSchema"):
         return self.raw_index_labels > other.raw_index_labels
 
-    def __ge__(self, other: 'BaseSchema'):
+    def __ge__(self, other: "BaseSchema"):
         return self.raw_index_labels >= other.raw_index_labels
