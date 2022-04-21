@@ -29,6 +29,7 @@ class SchemaRouter(APIRouter):
         query_path = "/query",
         insert_path = "/insert",
         delete_path = "/delete",
+        summary_path = "/summary", 
         tags: Optional[List[Union[str, Enum]]] = None,
         can_read: Union[bool, DEPENDENCIES] = True,
         can_write: Union[bool, DEPENDENCIES] = True,
@@ -49,7 +50,7 @@ class SchemaRouter(APIRouter):
         if can_read:
             
             self._add_api_route(
-                "",
+                "/",
                 self._schema_route(),
                 methods=["GET"],
                 
@@ -67,7 +68,7 @@ class SchemaRouter(APIRouter):
             )
 
             self._add_api_route(
-                "/summary",
+                summary_path,
                 self._summary_route(),
                 methods=["POST"],
                 response_model=Optional[dict],  # type: ignore
