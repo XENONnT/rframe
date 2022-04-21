@@ -53,6 +53,7 @@ tinydb = "^4.7.0"
 pytest-cov = "^3.0.0"
 rstcheck = "^3.3.1"
 mypy = "^0.942"
+perflint = "^0.7.1"
 
 [tool.poetry.scripts]
 rframe = 'rframe.cli:main'

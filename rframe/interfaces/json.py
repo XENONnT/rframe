@@ -1,13 +1,14 @@
 from functools import singledispatch
 import json
-import toolz
 import fsspec
-import numpy as np
 
+from toolz import groupby
 from loguru import logger
 from typing import Any, List, Union
 from pydantic.datetime_parse import datetime_re
 from pydantic.validators import parse_datetime
+
+import numpy as np
 
 from ..types import Interval
 
@@ -35,9 +36,10 @@ class JsonBaseQuery(BaseDataQuery):
 
     def execute(self, limit: int = None, skip: int = None, sort=None):
         logger.debug("Applying pandas dataframe selection")
-
-        if not len(self.data):
+        
+        if not self.data:
             return []
+
         if sort is None:
             data = self.data
         else:
@@ -161,7 +163,7 @@ class JsonInterpolationQuery(JsonBaseQuery):
         if self.label is None:
             return records
 
-        if not all([self.field in record for record in records]):
+        if not all(self.field in record for record in records):
             raise KeyError(self.field)
 
         field_values = np.array([record[self.field] for record in records])
@@ -203,7 +205,7 @@ class JsonMultiQuery(JsonBaseQuery):
                     records = query.apply_selection(records)
                     continue
 
-                for _, docs in toolz.groupby(others, records):
+                for _, docs in groupby(others, records):
                     selection = query.apply_selection(docs).reset_index()
                     selections.extend(selection)
 

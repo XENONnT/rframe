@@ -1,7 +1,7 @@
 import datetime
-import numpy as np
-
 from typing import Callable, Union
+
+import numpy as np
 
 from ..types import Interval
 from ..utils import singledispatch

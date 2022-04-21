@@ -38,9 +38,7 @@ class FsspecStorage(Storage):
         with fsspec.open(self.path, "rb", **self.storage_kwargs) as f:
             if not f.writable():
                 raise IOError(
-                    'Cannot write to the database. Access mode is "{0}"'.format(
-                        f.mode
-                    )
+                    f'Cannot write to the database. Access mode is "{f.mode}"'
                 )
             json.dump(data, f)
 

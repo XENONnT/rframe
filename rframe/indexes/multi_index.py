@@ -1,7 +1,6 @@
 from collections.abc import Mapping
 
-import toolz
-
+from toolz import groupby
 from .base import BaseIndex
 from ..utils import hashable_doc, unhashable_doc
 
@@ -37,13 +36,13 @@ class MultiIndex(BaseIndex):
         indexes = {index.name: index for index in self.indexes}
         return {k: indexes[k].validate_label(v) for k, v in label.items()}
 
-    def reduce(self, documents, labels):
-        if not documents:
-            return documents
+    def reduce(self, docs, labels):
+        if not docs:
+            return docs
 
         keys = set(index.name for index in self.indexes)
-        keys = keys.intersection(documents[0])
-        documents = [hashable_doc(doc) for doc in documents]
+        keys = keys.intersection(docs[0])
+        docs = [hashable_doc(doc) for doc in docs]
         for index in self.indexes:
             if index.name not in labels:
                 continue
@@ -51,19 +50,17 @@ class MultiIndex(BaseIndex):
             if not others:
                 continue
             reduced_documents = []
-            for _, docs in toolz.groupby(others, documents).items():
+            for grp in groupby(others, docs).values():
                 label = labels[index.name]
-                reduced = index.reduce(docs, label)
+                reduced = index.reduce(grp, label)
                 reduced_documents.extend(reduced)
-            documents = reduced_documents
-        documents = [unhashable_doc(doc) for doc in documents]
-        return documents
+            docs = reduced_documents
+        docs = [unhashable_doc(doc) for doc in docs]
+        return docs
 
     def __repr__(self):
         return f"MultiIndex({self.indexes})"
 
     def label_options(self, query):
-        label_options = []
-        for idx in self.indexes:
-            label_options.append(idx.label_options(query))
+        label_options = [idx.label_options(query) for idx in self.indexes]
         return label_options
