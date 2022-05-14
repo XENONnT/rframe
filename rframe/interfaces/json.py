@@ -326,4 +326,6 @@ def from_json_dict(obj):
     if len(obj) == 2 and "left" in obj and "right" in obj:
         left, right = from_json((obj["left"], obj["right"]))
         return Interval[left, right]
+    if len(obj) == 3 and "start" in obj and "stop" in obj and "step" in obj:
+        return slice(from_json(obj['start']), from_json(obj['stop']), from_json(obj['step']))
     return {k: from_json(v) for k, v in obj.items()}

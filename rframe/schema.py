@@ -64,7 +64,7 @@ class BaseSchema(BaseModel):
                 if name in getattr(type_, "__annotations__", {}):
                     label_annotation = type_.__annotations__[name]
                     annotation = Optional[
-                        Union[label_annotation, List[label_annotation]]
+                        Union[label_annotation, List[label_annotation], Dict[str, Optional[label_annotation]]]
                     ]
                     param = inspect.Parameter(
                         name,

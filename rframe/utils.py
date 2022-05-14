@@ -71,7 +71,9 @@ def jsonable(obj):
         return int(obj)
 
     if isinstance(obj, slice):
-        return slice(jsonable(obj.start), jsonable(obj.stop), jsonable(obj.step))
+        return {"start": jsonable(obj.start),
+                "stop": jsonable(obj.stop), 
+                "step": jsonable(obj.step)}
 
     raise TypeError(f"Cannot convert {type(obj)} to JSON")
 
