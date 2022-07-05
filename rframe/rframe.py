@@ -23,16 +23,18 @@ class RemoteFrame:
 
     schema: Type[BaseSchema]
     db: Any
-
+    
+    _lazy: bool = False
     _index = None
 
     def __init__(
-        self, schema: Type[BaseSchema], datasource: Any = None, **labels
+        self, schema: Type[BaseSchema], datasource: Any = None, lazy=False, **labels
     ) -> None:
         self.schema = schema
         self._datasource = datasource
         self._labels = labels
         self._index = None
+        self._lazy = lazy
 
     @classmethod
     def from_mongodb(cls, schema, url, db, collection, **kwargs) -> 'RemoteFrame':
@@ -127,8 +129,9 @@ class RemoteFrame:
 
     def sel(self, *args: IndexLabel, **kwargs: IndexLabel) -> pd.DataFrame:
         """select a subset of the data
-        returns a pandas dataframe if all indexes are specified.
+        If not lazy or if all indexes are specified, returns a pandas dataframe.
         Otherwise returns a RemoteFrame
+
         """
         index_fields = self.index_names
         labels = {name: lbl for name, lbl in zip(index_fields, args)}
@@ -142,12 +145,16 @@ class RemoteFrame:
             else:
                 merged[k] = v
 
-        rf = RemoteFrame(self.schema, self.datasource, **merged)
-        if all([label in merged for label in self.index_names]):
-            rf = rf.df
-        if len(extra):
-            rf = RemoteFrame(self.schema, rf, **extra)
+        if self._lazy:
+            rf = RemoteFrame(self.schema, self.datasource, lazy=self._lazy, **merged)
+            if all([label in merged for label in self.index_names]):
+                rf = rf.df
+        else:
+            rf = self.schema.find_df(self.datasource, **merged)
 
+        if len(extra):
+            rf = RemoteFrame(self.schema, rf, lazy=self._lazy, **extra)
+        
         return rf
 
     def set(self, *args: IndexLabel, **kwargs: IndexLabel) -> BaseSchema:

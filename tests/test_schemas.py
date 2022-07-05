@@ -106,7 +106,7 @@ class BaseTestSchema(BaseSchema):
         cls, tester: unittest.TestCase, datasource, docs: List["BaseTestSchema"]
     ):
 
-        rf = rframe.RemoteFrame(cls, datasource)
+        rf = rframe.RemoteFrame(cls, datasource, lazy=True)
 
         # test RemoteFrame .at scalar lookup
         for doc in docs:

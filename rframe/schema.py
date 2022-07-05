@@ -64,7 +64,9 @@ class BaseSchema(BaseModel):
                 if name in getattr(type_, "__annotations__", {}):
                     label_annotation = type_.__annotations__[name]
                     annotation = Optional[
-                        Union[label_annotation, List[label_annotation], Dict[str, Optional[label_annotation]]]
+                        Union[label_annotation,
+                              List[label_annotation],
+                              Dict[str, Optional[label_annotation]]]
                     ]
                     param = inspect.Parameter(
                         name,
@@ -115,6 +117,7 @@ class BaseSchema(BaseModel):
     def validate_partial(cls, allow_None=True, **kwargs):
         """Perform validation on subset of fields"""
         validated = {}
+        errors = []
         for name, field in cls.__fields__.items():
             if name not in kwargs:
                 continue
@@ -123,9 +126,13 @@ class BaseSchema(BaseModel):
                 validated[name] = val
                 continue
             val, error = field.validate(val, validated, loc=name)
-            if error:
-                raise ValidationError([error])
+            if errors:
+                errors.append(error)
+                
             validated[name] = val
+
+        if errors:
+            raise ValidationError(errors)
 
         if len(validated) == 1:
             return validated[list(validated)[0]]
