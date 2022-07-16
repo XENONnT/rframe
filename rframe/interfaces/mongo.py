@@ -93,15 +93,17 @@ class MongoAggregation(BaseDataQuery):
     def iter(self, limit=None, skip=None, sort=None):
         pipeline = list(self.pipeline)
 
-        if sort is not None:
-            sort = [sort] if isinstance(sort, str) else sort
-            if isinstance(sort, list):
-                sort_arg = {field: 1 for field in sort}
-            elif isinstance(sort, dict):
-                sort_arg = sort
-            else:
-                raise TypeError(f"sort must be a list or dict, got {type(sort)}.")
-            pipeline = [{"$sort": sort_arg}] + pipeline
+        if sort is None:
+            sort = self.index.names
+
+        sort = [sort] if isinstance(sort, str) else sort
+        if isinstance(sort, list):
+            sort_arg = {field: 1 for field in sort}
+        elif isinstance(sort, dict):
+            sort_arg = sort
+        else:
+            raise TypeError(f"sort must be a list or dict, got {type(sort)}.")
+        pipeline = pipeline + [{"$sort": sort_arg}]
 
         if isinstance(skip, int):
             raw_skip = skip * self.docs_per_label

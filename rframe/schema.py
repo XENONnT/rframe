@@ -548,7 +548,7 @@ class BaseSchema(BaseModel):
     def __eq__(self, other: Any):
         if not isinstance(other, BaseSchema):
             False
-        return are_equal(self.dict, other.dict())
+        return are_equal(self.dict(), other.dict())
 
     def __gt__(self, other: "BaseSchema"):
         return self.raw_index_labels > other.raw_index_labels
