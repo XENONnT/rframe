@@ -62,6 +62,8 @@ class MultiMongoAggregation(BaseDataQuery):
                         continue
                     yield doc
                     seen.add(labels)
+                    if limit and len(seen)>=limit:
+                        return
 
     def unique(self, fields: Union[str, List[str]]):
         if len(fields) == 1:
