@@ -1,8 +1,10 @@
+from collections import defaultdict
 import datetime
 import pymongo
 import numbers
 
 from functools import singledispatch
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from itertools import product
 from typing import List, Union
 from loguru import logger
@@ -14,7 +16,7 @@ from pymongo.collection import Collection
 from ..types import Interval
 
 from ..indexes import Index, InterpolatingIndex, IntervalIndex, MultiIndex
-from ..utils import singledispatchmethod
+from ..utils import singledispatchmethod, hashable_doc, unhashable_doc
 from .base import BaseDataQuery, DatasourceInterface
 
 
@@ -36,17 +38,75 @@ class MultiMongoAggregation(BaseDataQuery):
         self.collection = collection
         self.aggregations = aggregations
 
-    def execute(self, limit=None, skip=None):
+    def execute(self, limit=None, skip=None, sort=None):
         logger.debug("Executing multi mongo aggregation.")
-        results = []
-        for agg in self.aggregations:
-            results.extend(agg.execute(self.collection, limit=limit, skip=skip))
+        results = list(self.iter(limit=limit, skip=skip, sort=sort))
         skip = 0 if skip is None else skip
-
         if limit is not None:
             return results[skip : limit + skip]
-
         return results
+
+    def iter(self, limit=None, skip=None, sort=None):
+        results = {}
+    
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            # Start the load operations and mark each future with its URL
+            futures = {executor.submit(agg.iter, limit=limit, skip=skip, sort=sort): agg
+                        for agg in self.aggregations}
+            for future in as_completed(futures):
+                agg = futures[future]
+                for doc in future.result():
+                    labels = tuple(doc[name] for name in agg.index.names)
+                    results[labels] = doc
+        yield from results.values()
+
+    def unique(self, fields: Union[str, List[str]]):
+        if len(fields) == 1:
+            fields = fields[0]
+            
+        if isinstance(fields, str):
+            results = set()
+            for agg in self.aggregations:
+                results.update(agg.unique(fields))
+            return results
+        else:
+            results = defaultdict(set)
+            for agg in self.aggregations:
+                res = agg.unique(fields)
+                for field in fields:
+                    results[field].update(res[field])
+            return results
+        
+    def min(self, fields: Union[str, List[str]]):
+        if len(fields) == 1:
+            fields = fields[0]
+            
+        if isinstance(fields, str):
+            return min([agg.min(fields) for agg in self.aggregations ])
+        else:
+            results = defaultdict(set)
+            for agg in self.aggregations:
+                res = agg.min(fields)
+                for field in fields:
+                    results[field].add(res[field])
+            return {k: min(v) for k,v in results.items()}
+
+    def max(self, fields: Union[str, List[str]]):
+        if len(fields) == 1:
+            fields = fields[0]
+
+        if isinstance(fields, str):
+            return max([agg.max(fields) for agg in self.aggregations ])
+        else:
+            results = defaultdict(set)
+            for agg in self.aggregations:
+                res = agg.max(fields)
+                for field in fields:
+                    results[field].add(res[field])
+            return {k: max(v) for k,v in results.items()}
+
+    def count(self):
+        return sum([agg.count() for agg in self.aggregations])
 
     def logical_or(self, other: "MultiMongoAggregation"):
         if isinstance(other, MultiMongoAggregation):
@@ -132,6 +192,7 @@ class MongoAggregation(BaseDataQuery):
                     if collected >= limit:
                         return
                 docs = []
+
         if len(docs) and collected < limit:
             docs = self.index.reduce(docs, self.labels)
             for doc in docs:
@@ -279,10 +340,12 @@ class MongoInterface(DatasourceInterface):
         return MongoAggregation(index, labels, self.source, pipeline)
 
     def product_multi_query(self, index, labels):
-        labels = [label if isinstance(label, list) else [label] for label in labels]
+        labels = [[(name, l) for l in label] if isinstance(label, list) 
+                  else [(name, label)] for name,label in labels.items()]
         aggs = []
         for label_vals in product(*labels):
-            agg = self.simple_multi_query(index.indexes, label_vals)
+            label_dict = dict(label_vals)
+            agg = self.simple_multi_query(index, label_dict)
             aggs.append(agg)
         return MultiMongoAggregation(self.source, aggs)
 
@@ -295,7 +358,7 @@ class MongoInterface(DatasourceInterface):
         )
         if not isinstance(index, MultiIndex):
             index = MultiIndex(*index)
-        return self.simple_multi_query(index, labels)
+        return self.product_multi_query(index, labels)
 
     @compile_query.register(Index)
     @compile_query.register(str)
