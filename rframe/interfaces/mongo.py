@@ -47,7 +47,7 @@ class MultiMongoAggregation(BaseDataQuery):
         return results
 
     def iter(self, limit=None, skip=None, sort=None):
-        results = {}
+        seen = set()
     
         with ThreadPoolExecutor(max_workers=5) as executor:
             # Start the load operations and mark each future with its URL
@@ -57,8 +57,11 @@ class MultiMongoAggregation(BaseDataQuery):
                 agg = futures[future]
                 for doc in future.result():
                     labels = tuple(doc[name] for name in agg.index.names)
-                    results[labels] = doc
-        yield from results.values()
+                    if labels in seen:
+                        # only produce unique values
+                        continue
+                    yield doc
+                    seen.add(labels)
 
     def unique(self, fields: Union[str, List[str]]):
         if len(fields) == 1:
