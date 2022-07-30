@@ -153,6 +153,9 @@ class Interval(BaseModel):
     def clone(self, left=None, right=None):
         return self.__class__(left=left or self.left, right=right or self.right)
 
+    def __str__(self):
+        return f'{str(self.left)} to {str(self.right)}'
+
 
 class IntegerInterval(Interval):
     _resolution = 1
