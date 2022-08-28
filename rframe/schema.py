@@ -204,7 +204,11 @@ class BaseSchema(BaseModel):
 
         query = cls.compile_query(datasource=datasource, **labels)
         for doc in query.iter(limit=_limit, skip=_skip, sort=_sort):
-            yield cls(**doc).dict()
+            try:
+                cls.validate(doc)
+            except ValidationError:
+                continue
+            yield doc
 
     @classmethod
     def find(
@@ -233,8 +237,8 @@ class BaseSchema(BaseModel):
         cls, datasource=None, _skip=None, _limit=None, _sort=None, **labels
     ) -> pd.DateOffset:
         docs = [
-            d.pandas_dict()
-            for d in cls.find(
+            to_pandas(d)
+            for d in cls._find(
                 datasource, _skip=_skip, _limit=_limit, _sort=_sort, **labels
             )
         ]

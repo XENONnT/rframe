@@ -354,6 +354,17 @@ class MongoInterface(DatasourceInterface):
             aggs.append(agg)
         return MultiMongoAggregation(self.source, aggs)
 
+    def faceted_multi_query(self, index, labels):
+        label_tuples = [[(name, l) for l in label] if isinstance(label, list) 
+                  else [(name, label)] for name,label in labels.items()]
+        aggs = {}
+        for i, label_vals in enumerate(product(*label_tuples)):
+            label_dict = dict(label_vals)
+            agg = self.simple_multi_query(index, label_dict).pipeline
+            aggs[str(i)] = agg
+        pipeline = merge_pipelines(aggs)
+        return MongoAggregation(index, labels, self.source, pipeline)
+
     @compile_query.register(list)
     @compile_query.register(tuple)
     @compile_query.register(MultiIndex)
@@ -363,7 +374,9 @@ class MongoInterface(DatasourceInterface):
         )
         if not isinstance(index, MultiIndex):
             index = MultiIndex(*index)
-        return self.product_multi_query(index, labels)
+        if any(isinstance(idx, InterpolatingIndex) for idx in index.indexes):
+            return self.faceted_multi_query(index, labels)
+        return self.simple_multi_query(index, labels)
 
     @compile_query.register(Index)
     @compile_query.register(str)
@@ -429,12 +442,13 @@ class MongoInterface(DatasourceInterface):
         limit = 1 if others is None else others
 
         if not isinstance(label, list):
-            pipelines = dict(
-                before=mongo_before_query(index.name, label, limit=limit),
-                after=mongo_after_query(index.name, label, limit=limit),
-            )
-            pipeline = merge_pipelines(pipelines)
+            # pipelines = dict(
+            #     before=mongo_before_query(index.name, label, limit=limit),
+            #     after=mongo_after_query(index.name, label, limit=limit),
+            # )
+            # pipeline = merge_pipelines(pipelines)
             labels = {index.name: label}
+            pipeline = mongo_closest_query(index.name, label)
             return MongoAggregation(index, labels, self.source, pipeline)
 
         pipelines = {
