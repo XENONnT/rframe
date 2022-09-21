@@ -386,6 +386,10 @@ class MongoInterface(DatasourceInterface):
         )
         name = index.name if isinstance(index, Index) else index
 
+        if label is None or label==slice(None):
+            labels = {index.name: label}
+            return MongoAggregation(index, labels, self.source, [])
+
         label = to_mongo(label)
 
         if isinstance(label, slice):
@@ -436,7 +440,7 @@ class MongoInterface(DatasourceInterface):
 
         label = to_mongo(label)
 
-        if label is None:
+        if label is None or label==slice(None):
             labels = {index.name: label}
             return MongoAggregation(index, labels, self.source, [])
         limit = 1 if others is None else others
@@ -448,11 +452,11 @@ class MongoInterface(DatasourceInterface):
             # )
             # pipeline = merge_pipelines(pipelines)
             labels = {index.name: label}
-            pipeline = mongo_closest_query(index.name, label)
+            pipeline = mongo_closest_query(index.name, label, groupby=others)
             return MongoAggregation(index, labels, self.source, pipeline)
 
         pipelines = {
-            f"agg{i}": mongo_closest_query(index.name, value)
+            f"agg{i}": mongo_closest_query(index.name, value, groupby=others)
             for i, value in enumerate(label)
         }
         pipeline = merge_pipelines(pipelines)
@@ -471,6 +475,10 @@ class MongoInterface(DatasourceInterface):
         logger.debug(
             "Building mongo interval-query for index: " f"{index} with label: {label}"
         )
+
+        if label is None or label==slice(None):
+            labels = {index.name: label}
+            return MongoAggregation(index, labels, self.source, [])
 
         if isinstance(label, list):
             intervals = label
@@ -535,7 +543,10 @@ class MongoInterface(DatasourceInterface):
     update = insert
 
     def ensure_index(self, names, order=pymongo.ASCENDING):
-        self.source.ensure_index([(name, order) for name in names])
+        try:
+            self.source.ensure_index([(name, order) for name in names])
+        except TypeError:
+            self.source.create_index([(name, order) for name in names]) 
 
     def delete(self, doc):
         index = to_mongo(doc.index_labels)
@@ -653,7 +664,14 @@ def mongo_grouped_after_query(name, value, groups):
     ]
 
 
-def mongo_closest_query(name, value):
+def mongo_closest_query(name, value, groupby=None):
+    if groupby is None:
+        groupby = []
+    elif isinstance(groupby, str):
+        groupby = [groupby]
+
+    groupby = ["$_after"] + [f"${grp}" for grp in groupby]
+    
     return [
         {
             "$addFields": {
@@ -672,7 +690,7 @@ def mongo_closest_query(name, value):
             # first group by whether document is before or after the value
             # the take the first document in each group
             "$group": {
-                "_id": "$_after",
+                "_id": groupby,
                 "doc": {"$first": "$$ROOT"},
             }
         },
