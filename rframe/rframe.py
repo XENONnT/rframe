@@ -93,7 +93,7 @@ class RemoteFrame:
         """Return first n documents as a pandas dataframe"""
         sort = list(self.schema.get_index_fields())
         return self.schema.find_df(
-            self.datasource, _limit=n, _sort=sort, **self._labels
+            self.datasource, limit=n, sort=sort, **self._labels
         )
 
     def isel(self, idx: Union[int, slice]):
@@ -106,7 +106,7 @@ class RemoteFrame:
         limit = idx.stop - skip if idx.stop is not None else None
         sort = list(self.schema.get_index_fields())
         return self.schema.find_df(
-            self.datasource, _skip=skip, _limit=limit, _sort=sort, **self._labels
+            self.datasource, skip=skip, limit=limit, sort=sort, **self._labels
         )
 
     def unique(self, columns: Union[str, List[str]] = None):
