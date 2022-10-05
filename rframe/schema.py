@@ -11,6 +11,7 @@ from .indexes import BaseIndex, Index, MultiIndex
 from .interfaces import get_interface
 from .interfaces.pandas import to_pandas
 
+RESERVED_FIELDS = ('limit', 'skip', 'sort')
 
 class EditError(Exception):
     pass
@@ -31,6 +32,14 @@ class DeletionError(EditError):
 class BaseSchema(BaseModel):
     class Config:
         validate_assignment = True
+
+    def __init_subclass__(cls) -> None:
+        for name in RESERVED_FIELDS:
+            if name in cls.__fields__:
+                raise ValueError(
+                    f"Field name '{name}' is reserved and cannot be used."
+                )
+        return super().__init_subclass__()
 
     @classmethod
     def default_datasource(cls):
