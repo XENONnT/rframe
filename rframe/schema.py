@@ -205,14 +205,14 @@ class BaseSchema(BaseModel):
 
     @classmethod
     def _find(
-        cls, datasource=None, _skip=None, _limit=None, _sort=None, **labels
+        cls, datasource=None, skip=None, limit=None, sort=None, **labels
     ) -> Generator[dict, None, None]:
         """Internal find function, performs data validation but
         returns raw dicts, not schema instances.
         """
 
         query = cls.compile_query(datasource=datasource, **labels)
-        for doc in query.iter(limit=_limit, skip=_skip, sort=_sort):
+        for doc in query.iter(limit=limit, skip=skip, sort=sort):
             try:
                 cls.validate(doc)
             except ValidationError:
@@ -221,7 +221,7 @@ class BaseSchema(BaseModel):
 
     @classmethod
     def find(
-        cls, datasource=None, _skip=None, _limit=None, _sort=None, **labels
+        cls, datasource=None, skip=None, limit=None, sort=None, **labels
     ) -> List["BaseSchema"]:
         """Find documents in datasource matching the given labels
         returns List[BaseSchema]
@@ -230,25 +230,25 @@ class BaseSchema(BaseModel):
         return [
             cls(**doc)
             for doc in cls._find(
-                datasource, _skip=_skip, _limit=_limit, _sort=_sort, **labels
+                datasource, skip=skip, limit=limit, sort=sort, **labels
             )
         ]
 
     @classmethod
-    def find_iter(cls, datasource=None, _skip=None, _limit=None, _sort=None, **labels):
+    def find_iter(cls, datasource=None, skip=None, limit=None, sort=None, **labels):
         for doc in cls._find(
-            datasource, _skip=_skip, _limit=_limit, _sort=_sort, **labels
+            datasource, skip=skip, limit=limit, sort=sort, **labels
         ):
             yield cls(**doc)
 
     @classmethod
     def find_df(
-        cls, datasource=None, _skip=None, _limit=None, _sort=None, **labels
+        cls, datasource=None, skip=None, limit=None, sort=None, **labels
     ) -> pd.DateOffset:
         docs = [
             to_pandas(d)
             for d in cls._find(
-                datasource, _skip=_skip, _limit=_limit, _sort=_sort, **labels
+                datasource, skip=skip, limit=limit, sort=sort, **labels
             )
         ]
         df = pd.json_normalize(docs)
@@ -261,10 +261,10 @@ class BaseSchema(BaseModel):
 
     @classmethod
     def find_one(
-        cls, datasource=None, _skip=None, _sort=None, **labels
+        cls, datasource=None, skip=None, sort=None, **labels
     ) -> Optional["BaseSchema"]:
         docs = cls.find(
-            datasource=datasource, _skip=_skip, _limit=1, _sort=_sort, **labels
+            datasource=datasource, skip=skip, limit=1, sort=sort, **labels
         )
         if docs:
             return docs[0]
