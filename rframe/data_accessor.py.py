@@ -45,10 +45,10 @@ class DataAccessor:
         
     def _init(self):
         for name in METHODS:
-            method = self.gen_method(name)
+            method = self._gen_method(name)
             setattr(self, name, method)
 
-    def gen_method(self, name):
+    def _gen_method(self, name):
         signature = self.schema.get_query_signature()
         signature = makefun.add_signature_parameters(signature, extra_params)
         impl = getattr(self, '_' + name)
