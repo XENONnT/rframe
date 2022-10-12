@@ -36,7 +36,7 @@ class IntervalIndex(BaseIndex):
         for iv in labels[1:]:
             # touching intervals can be combined
             if iv.left == ivs[-1].right:
-                ivs[-1] = Interval[ivs[-1].left,iv.right]
+                ivs[-1] = Interval[ivs[-1].left, iv.right]
             else:
                 ivs.append(iv)
         return ivs

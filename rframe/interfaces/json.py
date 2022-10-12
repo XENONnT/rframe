@@ -36,7 +36,7 @@ class JsonBaseQuery(BaseDataQuery):
 
     def execute(self, limit: int = None, skip: int = None, sort=None):
         logger.debug("Applying pandas dataframe selection")
-        
+
         if not self.data:
             return []
 
@@ -327,5 +327,7 @@ def from_json_dict(obj):
         left, right = from_json((obj["left"], obj["right"]))
         return Interval[left, right]
     if len(obj) == 3 and "start" in obj and "stop" in obj and "step" in obj:
-        return slice(from_json(obj['start']), from_json(obj['stop']), from_json(obj['step']))
+        return slice(
+            from_json(obj["start"]), from_json(obj["stop"]), from_json(obj["step"])
+        )
     return {k: from_json(v) for k, v in obj.items()}

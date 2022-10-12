@@ -154,7 +154,7 @@ class Interval(BaseModel):
         return self.__class__(left=left or self.left, right=right or self.right)
 
     def __str__(self):
-        return f'{str(self.left)} to {str(self.right)}'
+        return f"{str(self.left)} to {str(self.right)}"
 
 
 class IntegerInterval(Interval):

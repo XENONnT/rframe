@@ -82,11 +82,13 @@ class PandasBaseQuery(BaseDataQuery):
         results = from_pandas(results)
         return results
 
-    def unique(self, fields: Union[str, List[str]]) -> Union[List[Any], Dict[str,List[Any]]]:
+    def unique(
+        self, fields: Union[str, List[str]]
+    ) -> Union[List[Any], Dict[str, List[Any]]]:
         if isinstance(fields, str):
             fields = [fields]
         df = self.apply_selection(self.df)
-        
+
         results = {}
         for field in fields:
             if field in df.index.names:
@@ -95,7 +97,7 @@ class PandasBaseQuery(BaseDataQuery):
 
         if len(fields) == 1:
             results = results[fields[0]]
-        
+
         results = from_pandas(results)
         return results
 

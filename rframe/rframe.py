@@ -23,7 +23,7 @@ class RemoteFrame:
 
     schema: Type[BaseSchema]
     db: Any
-    
+
     _lazy: bool = False
     _index = None
 
@@ -37,7 +37,7 @@ class RemoteFrame:
         self._lazy = lazy
 
     @classmethod
-    def from_mongodb(cls, schema, url, db, collection, **kwargs) -> 'RemoteFrame':
+    def from_mongodb(cls, schema, url, db, collection, **kwargs) -> "RemoteFrame":
         import pymongo
 
         db = pymongo.MongoClient(url, **kwargs)[db]
@@ -92,9 +92,7 @@ class RemoteFrame:
     def head(self, n=10) -> pd.DataFrame:
         """Return first n documents as a pandas dataframe"""
         sort = list(self.schema.get_index_fields())
-        return self.schema.find_df(
-            self.datasource, limit=n, sort=sort, **self._labels
-        )
+        return self.schema.find_df(self.datasource, limit=n, sort=sort, **self._labels)
 
     def isel(self, idx: Union[int, slice]):
         """Get a single document or slice by index"""
@@ -154,7 +152,7 @@ class RemoteFrame:
 
         if len(extra):
             rf = RemoteFrame(self.schema, rf, lazy=self._lazy, **extra)
-        
+
         return rf
 
     def set(self, *args: IndexLabel, **kwargs: IndexLabel) -> BaseSchema:
@@ -263,7 +261,7 @@ class RemoteSeries:
     @property
     def index(self):
         return self.frame.index
-    
+
     @property
     def index_names(self):
         return self.frame.index_names
@@ -378,16 +376,16 @@ class SeriesIndexer:
     def __init__(self, obj: RemoteSeries):
         self.obj = obj
 
-class SeriesLocIndexer(SeriesIndexer):
 
-    def __getitem__(self, index: Union[Tuple[IndexLabel],IndexLabel]) -> pd.DataFrame:
+class SeriesLocIndexer(SeriesIndexer):
+    def __getitem__(self, index: Union[Tuple[IndexLabel], IndexLabel]) -> pd.DataFrame:
         if not isinstance(index, tuple):
-            index = (index, )
+            index = (index,)
         return self.obj.sel(*index)
 
-    def __setitem__(self, index: Union[Tuple[IndexLabel],IndexLabel], value: Any):
+    def __setitem__(self, index: Union[Tuple[IndexLabel], IndexLabel], value: Any):
         if not isinstance(index, tuple):
-            index = (index, )
+            index = (index,)
         self.obj.set(*index, value)
 
     def __repr__(self) -> str:
@@ -400,8 +398,7 @@ class SeriesILocIndexer(SeriesIndexer):
 
 
 class SeriesAtLocator(SeriesIndexer):
-
-    def __getitem__(self, index: Union[IndexLabel,Tuple[IndexLabel,...]]) -> Any:
+    def __getitem__(self, index: Union[IndexLabel, Tuple[IndexLabel, ...]]) -> Any:
         if not isinstance(index, tuple):
             index = (index,)
 

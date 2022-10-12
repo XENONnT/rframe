@@ -48,11 +48,13 @@ class MultiMongoAggregation(BaseDataQuery):
 
     def iter(self, limit=None, skip=None, sort=None):
         seen = set()
-    
+
         with ThreadPoolExecutor(max_workers=5) as executor:
             # Start the load operations and mark each future with its URL
-            futures = {executor.submit(agg.iter, limit=limit, skip=skip, sort=sort): agg
-                        for agg in self.aggregations}
+            futures = {
+                executor.submit(agg.iter, limit=limit, skip=skip, sort=sort): agg
+                for agg in self.aggregations
+            }
             for future in as_completed(futures):
                 agg = futures[future]
                 for doc in future.result():
@@ -62,13 +64,13 @@ class MultiMongoAggregation(BaseDataQuery):
                         continue
                     yield doc
                     seen.add(labels)
-                    if limit and len(seen)>=limit:
+                    if limit and len(seen) >= limit:
                         return
 
     def unique(self, fields: Union[str, List[str]]):
         if len(fields) == 1:
             fields = fields[0]
-            
+
         if isinstance(fields, str):
             results = set()
             for agg in self.aggregations:
@@ -81,34 +83,34 @@ class MultiMongoAggregation(BaseDataQuery):
                 for field in fields:
                     results[field].update(res[field])
             return results
-        
+
     def min(self, fields: Union[str, List[str]]):
         if len(fields) == 1:
             fields = fields[0]
-            
+
         if isinstance(fields, str):
-            return min([agg.min(fields) for agg in self.aggregations ])
+            return min([agg.min(fields) for agg in self.aggregations])
         else:
             results = defaultdict(set)
             for agg in self.aggregations:
                 res = agg.min(fields)
                 for field in fields:
                     results[field].add(res[field])
-            return {k: min(v) for k,v in results.items()}
+            return {k: min(v) for k, v in results.items()}
 
     def max(self, fields: Union[str, List[str]]):
         if len(fields) == 1:
             fields = fields[0]
 
         if isinstance(fields, str):
-            return max([agg.max(fields) for agg in self.aggregations ])
+            return max([agg.max(fields) for agg in self.aggregations])
         else:
             results = defaultdict(set)
             for agg in self.aggregations:
                 res = agg.max(fields)
                 for field in fields:
                     results[field].add(res[field])
-            return {k: max(v) for k,v in results.items()}
+            return {k: max(v) for k, v in results.items()}
 
     def count(self):
         return sum([agg.count() for agg in self.aggregations])
@@ -345,8 +347,10 @@ class MongoInterface(DatasourceInterface):
         return MongoAggregation(index, labels, self.source, pipeline)
 
     def product_multi_query(self, index, labels):
-        labels = [[(name, l) for l in label] if isinstance(label, list) 
-                  else [(name, label)] for name,label in labels.items()]
+        labels = [
+            [(name, l) for l in label] if isinstance(label, list) else [(name, label)]
+            for name, label in labels.items()
+        ]
         aggs = []
         for label_vals in product(*labels):
             label_dict = dict(label_vals)
@@ -355,8 +359,10 @@ class MongoInterface(DatasourceInterface):
         return MultiMongoAggregation(self.source, aggs)
 
     def faceted_multi_query(self, index, labels):
-        label_tuples = [[(name, l) for l in label] if isinstance(label, list) 
-                  else [(name, label)] for name,label in labels.items()]
+        label_tuples = [
+            [(name, l) for l in label] if isinstance(label, list) else [(name, label)]
+            for name, label in labels.items()
+        ]
         aggs = {}
         for i, label_vals in enumerate(product(*label_tuples)):
             label_dict = dict(label_vals)
@@ -386,7 +392,7 @@ class MongoInterface(DatasourceInterface):
         )
         name = index.name if isinstance(index, Index) else index
 
-        if label is None or label==slice(None):
+        if label is None or label == slice(None):
             labels = {index.name: label}
             return MongoAggregation(index, labels, self.source, [])
 
@@ -440,7 +446,7 @@ class MongoInterface(DatasourceInterface):
 
         label = to_mongo(label)
 
-        if label is None or label==slice(None):
+        if label is None or label == slice(None):
             labels = {index.name: label}
             return MongoAggregation(index, labels, self.source, [])
         limit = 1 if others is None else others
@@ -476,7 +482,7 @@ class MongoInterface(DatasourceInterface):
             "Building mongo interval-query for index: " f"{index} with label: {label}"
         )
 
-        if label is None or label==slice(None):
+        if label is None or label == slice(None):
             labels = {index.name: label}
             return MongoAggregation(index, labels, self.source, [])
 
@@ -546,7 +552,7 @@ class MongoInterface(DatasourceInterface):
         try:
             self.source.ensure_index([(name, order) for name in names])
         except TypeError:
-            self.source.create_index([(name, order) for name in names]) 
+            self.source.create_index([(name, order) for name in names])
 
     def delete(self, doc):
         index = to_mongo(doc.index_labels)
@@ -671,7 +677,7 @@ def mongo_closest_query(name, value, groupby=None):
         groupby = [groupby]
 
     groupby = ["$_after"] + [f"${grp}" for grp in groupby]
-    
+
     return [
         {
             "$addFields": {

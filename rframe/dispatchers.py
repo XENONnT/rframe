@@ -11,6 +11,7 @@ from .types import Interval
 
 dispatch = Dispatcher()
 
+
 @dispatch
 def are_equal(x: str, y: str):
     return x == y

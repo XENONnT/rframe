@@ -37,7 +37,7 @@ class BaseDataQuery(ABC):
 
 
 class DatasourceInterface(ABC):
-    _INTERFACES: Dict[str,'DatasourceInterface'] = {}
+    _INTERFACES: Dict[str, "DatasourceInterface"] = {}
 
     def __init__(self, source) -> None:
         self.source = source

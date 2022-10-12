@@ -2,8 +2,17 @@ from enum import Enum
 import inspect
 import makefun
 
-from typing import (Any, Callable, List, Mapping, 
-        Optional, Sequence, Type, TypeVar, Union)
+from typing import (
+    Any,
+    Callable,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Type,
+    TypeVar,
+    Union,
+)
 
 from .schema import BaseSchema
 from .utils import camel_to_snake
@@ -26,10 +35,10 @@ class SchemaRouter(APIRouter):
         schema: Type[BaseSchema],
         datasource=None,
         prefix: Optional[str] = None,
-        query_path = "/query",
-        insert_path = "/insert",
-        delete_path = "/delete",
-        summary_path = "/summary", 
+        query_path="/query",
+        insert_path="/insert",
+        delete_path="/delete",
+        summary_path="/summary",
         tags: Optional[List[Union[str, Enum]]] = None,
         can_read: Union[bool, DEPENDENCIES] = True,
         can_write: Union[bool, DEPENDENCIES] = True,
@@ -48,12 +57,11 @@ class SchemaRouter(APIRouter):
         if isinstance(can_read, Depends):
             can_read = [can_read]
         if can_read:
-            
+
             self._add_api_route(
                 "/",
                 self._schema_route(),
                 methods=["GET"],
-                
                 summary=f"Get json schema for {self.schema.__name__} document",
                 dependencies=can_read,
             )
@@ -93,11 +101,10 @@ class SchemaRouter(APIRouter):
                 insert_path,
                 self._insert_many_route(),
                 methods=["POST"],
-                response_model=List[Union[self.schema,str]],  # type: ignore
+                response_model=List[Union[self.schema, str]],  # type: ignore
                 summary=f"Insert multiple {self.schema.__name__} documents",
                 dependencies=can_write,
             )
-
 
             self._add_api_route(
                 delete_path,
@@ -306,13 +313,15 @@ class SchemaRouter(APIRouter):
                 return doc
             except Exception as e:
                 raise HTTPException(status_code=400, detail=str(e))
+
         parameter = inspect.Parameter(
-                "doc",
-                inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                annotation=self.schema,
-            )
-        signature = inspect.Signature(parameters=[parameter], 
-                                      return_annotation=self.schema)
+            "doc",
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            annotation=self.schema,
+        )
+        signature = inspect.Signature(
+            parameters=[parameter], return_annotation=self.schema
+        )
         return makefun.create_function(
             signature, insert, func_name=f"{self.schema.__name__}_insert_one"
         )
@@ -327,14 +336,15 @@ class SchemaRouter(APIRouter):
                 except Exception as e:
                     results.append(str(e))
             return results
-            
+
         parameter = inspect.Parameter(
-                "docs",
-                inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                annotation=List[self.schema],
-            )
-        signature = inspect.Signature(parameters=[parameter], 
-                                      return_annotation=List[Union[self.schema,str]])
+            "docs",
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            annotation=List[self.schema],
+        )
+        signature = inspect.Signature(
+            parameters=[parameter], return_annotation=List[Union[self.schema, str]]
+        )
         return makefun.create_function(
             signature, insert_many, func_name=f"{self.schema.__name__}_insert_many"
         )
@@ -346,13 +356,15 @@ class SchemaRouter(APIRouter):
                 return doc
             except Exception as e:
                 raise HTTPException(status_code=400, detail=str(e))
+
         parameter = inspect.Parameter(
-                "doc",
-                inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                annotation=self.schema,
-            )
-        signature = inspect.Signature(parameters=[parameter],
-                                      return_annotation=self.schema)
+            "doc",
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            annotation=self.schema,
+        )
+        signature = inspect.Signature(
+            parameters=[parameter], return_annotation=self.schema
+        )
         return makefun.create_function(
             signature, delete, func_name=f"{self.schema.__name__}_delete"
         )

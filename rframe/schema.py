@@ -11,7 +11,8 @@ from .indexes import BaseIndex, Index, MultiIndex
 from .interfaces import get_interface
 from .interfaces.pandas import to_pandas
 
-RESERVED_FIELDS = ('limit', 'skip', 'sort')
+RESERVED_FIELDS = ("limit", "skip", "sort")
+
 
 class EditError(Exception):
     pass
@@ -36,9 +37,7 @@ class BaseSchema(BaseModel):
     def __init_subclass__(cls) -> None:
         for name in RESERVED_FIELDS:
             if name in cls.__fields__:
-                raise ValueError(
-                    f"Field name '{name}' is reserved and cannot be used."
-                )
+                raise ValueError(f"Field name '{name}' is reserved and cannot be used.")
         return super().__init_subclass__()
 
     @classmethod
@@ -73,9 +72,11 @@ class BaseSchema(BaseModel):
                 if name in getattr(type_, "__annotations__", {}):
                     label_annotation = type_.__annotations__[name]
                     annotation = Optional[
-                        Union[label_annotation,
-                              List[label_annotation],
-                              Dict[str, Optional[label_annotation]]]
+                        Union[
+                            label_annotation,
+                            List[label_annotation],
+                            Dict[str, Optional[label_annotation]],
+                        ]
                     ]
                     param = inspect.Parameter(
                         name,
@@ -137,7 +138,7 @@ class BaseSchema(BaseModel):
             val, error = field.validate(val, validated, loc=name)
             if errors:
                 errors.append(error)
-                
+
             validated[name] = val
 
         if errors:
@@ -236,9 +237,7 @@ class BaseSchema(BaseModel):
 
     @classmethod
     def find_iter(cls, datasource=None, skip=None, limit=None, sort=None, **labels):
-        for doc in cls._find(
-            datasource, skip=skip, limit=limit, sort=sort, **labels
-        ):
+        for doc in cls._find(datasource, skip=skip, limit=limit, sort=sort, **labels):
             yield cls(**doc)
 
     @classmethod
@@ -247,9 +246,7 @@ class BaseSchema(BaseModel):
     ) -> pd.DateOffset:
         docs = [
             to_pandas(d)
-            for d in cls._find(
-                datasource, skip=skip, limit=limit, sort=sort, **labels
-            )
+            for d in cls._find(datasource, skip=skip, limit=limit, sort=sort, **labels)
         ]
         df = pd.json_normalize(docs)
         if not len(df):
@@ -263,9 +260,7 @@ class BaseSchema(BaseModel):
     def find_one(
         cls, datasource=None, skip=None, sort=None, **labels
     ) -> Optional["BaseSchema"]:
-        docs = cls.find(
-            datasource=datasource, skip=skip, limit=1, sort=sort, **labels
-        )
+        docs = cls.find(datasource=datasource, skip=skip, limit=1, sort=sort, **labels)
         if docs:
             return docs[0]
         return None

@@ -100,7 +100,7 @@ class BaseTestSchema(BaseSchema):
         for doc in docs:
             doc_found = cls.find_one(datasource, **doc.index_labels)
             assert doc.same_values(doc_found)
-        
+
     @classmethod
     def frame_test(
         cls, tester: unittest.TestCase, datasource, docs: List["BaseTestSchema"]

@@ -1,4 +1,3 @@
-
 import re
 import json
 import math
@@ -71,9 +70,11 @@ def jsonable(obj):
         return int(obj)
 
     if isinstance(obj, slice):
-        return {"start": jsonable(obj.start),
-                "stop": jsonable(obj.stop), 
-                "step": jsonable(obj.step)}
+        return {
+            "start": jsonable(obj.start),
+            "stop": jsonable(obj.stop),
+            "step": jsonable(obj.step),
+        }
 
     raise TypeError(f"Cannot convert {type(obj)} to JSON")
 
@@ -251,5 +252,3 @@ def unhashable_doc(doc):
         doc = {k: unhashable_doc(v) for k, v in doc.items()}
         return dict(doc)
     return doc
-
-

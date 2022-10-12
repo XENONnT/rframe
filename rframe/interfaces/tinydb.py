@@ -161,7 +161,7 @@ class TinyDBInterface(DatasourceInterface):
         if url.endswith(".json"):
             db = TinyDB(url, storage=FsspecStorage, **kwargs)
             if table is not None:
-                db = db.table(table) # type: ignore
+                db = db.table(table)  # type: ignore
             return cls(db)
 
         raise NotImplementedError

@@ -14,6 +14,7 @@ from .rframe import RemoteFrame
 from .schema import BaseSchema
 from .rest_client import BaseRestClient, RestClient
 from .utils import jsonable
+from .data_accessor import DataAccessor
 
 try:
     from .rest_server import SchemaRouter
