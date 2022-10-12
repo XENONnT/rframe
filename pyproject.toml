@@ -1,7 +1,7 @@
 [tool]
 [tool.poetry]
 name = "rframe"
-version = "0.1.26"
+version = "0.1.27"
 homepage = "https://github.com/jmosbacher/rframe"
 description = "Top-level package for rframe."
 authors = ["Yossi Mosbacher <joe.mosbacher@gmail.com>"]
