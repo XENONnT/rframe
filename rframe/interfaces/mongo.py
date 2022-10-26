@@ -683,7 +683,7 @@ def mongo_closest_query(name, value, groupby=None):
             "$addFields": {
                 # Add a field splitting the documents into
                 # before and after the value of interest
-                "_after": {"$gte": [f"${name}", value]},
+                "_after": {"$gt": [f"${name}", value]},
                 # Add a field with the distance to the value of interest
                 "_diff": {"$abs": {"$subtract": [value, f"${name}"]}},
             }

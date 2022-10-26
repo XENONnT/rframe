@@ -88,3 +88,8 @@ class DataAccessor:
         if docs:
             return docs[0]
         return None
+
+    def insert(self, doc):
+        if not isinstance(doc, self.schema):
+            doc = self.schema(**doc)
+        return self.doc.save(self.storage)
