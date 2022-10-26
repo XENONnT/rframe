@@ -81,6 +81,10 @@ class InterpolatingIndex(BaseIndex):
             new_document = dict(nn_interpolate(x, xs, docs))
         new_document = dict(new_document, **{self.name: label})
 
+        # If we match exactly, we don't need to interpolate
+        if x in xs:
+            return [new_document]
+
         if len(xs) > 1 and max(xs) >= x >= min(xs):
             for yname in self.schema.get_column_fields():
                 ys = [d[yname] for d in docs if yname in d]
