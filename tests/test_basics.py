@@ -3,7 +3,6 @@ import unittest
 import pandas as pd
 
 import rframe
-from rframe.interfaces import get_interface
 from rframe.data_accessor import DataAccessor
 
 from .test_schemas import SimpleSchema
@@ -49,13 +48,11 @@ class TestBasic(unittest.TestCase):
         self.assertListEqual(index, list(range(100)))
 
     def test_queries(self):
-        docs = self.db.find_docs()
-        df2 = pd.DataFrame([doc.pandas_dict() for doc in docs]).set_index("index_field")
+        df2 = self.db.find_df()
         df2 = df2.sort_index()
         pd.testing.assert_frame_equal(self.df, df2, check_dtype=False)
 
-        docs = self.db.find_dicts(skip=2, limit=10)
-        df2 = pd.DataFrame(docs).set_index("index_field")
+        df2 = self.db.find_df(skip=2, limit=10)
         df2 = df2.sort_index()
         pd.testing.assert_frame_equal(self.df.iloc[2:12], df2, check_dtype=False)
 
