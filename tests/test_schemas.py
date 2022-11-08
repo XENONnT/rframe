@@ -69,44 +69,40 @@ class BaseTestSchema(BaseSchema):
 
     @classmethod
     def insert_data(
-        cls, tester: unittest.TestCase, datasource, docs: List["InterpolatingSchema"]
+        cls, tester: unittest.TestCase, db, docs: List["InterpolatingSchema"]
     ):
         PERMISSIONS["insert"] = False
-        for doc in docs:
-            with tester.assertRaises(InsertionError):
-                doc.save(datasource)
+        with tester.assertRaises(InsertionError):
+            db.insert(docs)
 
         PERMISSIONS["insert"] = True
-        for doc in docs:
-            doc.save(datasource)
-
+        db.insert(docs)
+ 
         PERMISSIONS["update"] = False
-        for doc in docs:
-            with tester.assertRaises(UpdateError):
-                doc.save(datasource)
+        with tester.assertRaises(UpdateError):
+            db.insert(docs)
 
     @classmethod
     def delete_data(
-        cls, tester: unittest.TestCase, datasource, docs: List["BaseTestSchema"]
+        cls, tester: unittest.TestCase, db, docs: List["BaseTestSchema"]
     ):
-        for doc in docs:
-            doc.delete(datasource)
-        tester.assertEqual(doc.__class__.count(datasource), 0)
+        db.delete(docs)
+        tester.assertEqual(db.count(), 0)
 
     @classmethod
     def basic_tests(
-        cls, tester: unittest.TestCase, datasource, docs: List["BaseTestSchema"]
+        cls, tester: unittest.TestCase, db, docs: List["BaseTestSchema"]
     ):
         for doc in docs:
-            doc_found = cls.find_one(datasource, **doc.index_labels)
+            doc_found = db.find_one(**doc.index_labels)
             assert doc.same_values(doc_found)
 
     @classmethod
     def frame_test(
-        cls, tester: unittest.TestCase, datasource, docs: List["BaseTestSchema"]
+        cls, tester: unittest.TestCase, db, docs: List["BaseTestSchema"]
     ):
 
-        rf = rframe.RemoteFrame(cls, datasource, lazy=True)
+        rf = rframe.RemoteFrame(cls, db.storage, lazy=True)
 
         # test RemoteFrame .at scalar lookup
         for doc in docs:
@@ -143,11 +139,11 @@ class BaseTestSchema(BaseSchema):
             assert are_equal(sorted(rf.unique(field)), unique_vals)
 
     @classmethod
-    def test(cls, tester: unittest.TestCase, datasource, docs: List["BaseTestSchema"]):
-        cls.insert_data(tester, datasource, docs)
-        cls.basic_tests(tester, datasource, docs)
-        cls.frame_test(tester, datasource, docs)
-        cls.delete_data(tester, datasource, docs)
+    def test(cls, tester: unittest.TestCase, db, docs: List["BaseTestSchema"]):
+        cls.insert_data(tester, db, docs)
+        cls.basic_tests(tester, db, docs)
+        cls.frame_test(tester, db, docs)
+        cls.delete_data(tester, db, docs)
 
 
 class SimpleSchema(BaseTestSchema):
@@ -209,7 +205,7 @@ class InterpolatingSchema(BaseTestSchema):
         return fields
 
     @classmethod
-    def basic_tests(cls, tester, datasource, docs: List["InterpolatingSchema"]):
+    def basic_tests(cls, tester, db, docs: List["InterpolatingSchema"]):
 
         for doc1, doc2 in zip(docs[:-1], docs[1:]):
             assume(1e-2 < abs(doc1.index_field - doc2.index_field) < 1e4)
@@ -217,15 +213,15 @@ class InterpolatingSchema(BaseTestSchema):
             value = (doc1.value + doc2.value) / 2
             if value < 1e-2:
                 continue
-            doc = cls.find_one(datasource, index_field=index)
+            doc = db.find_one(index_field=index)
             ratio = doc.value / value
             tester.assertAlmostEqual(ratio, 1, delta=1e-2)
 
     @classmethod
-    def test(cls, tester, datasource, docs: List["BaseTestSchema"]):
-        cls.insert_data(tester, datasource, docs)
-        cls.basic_tests(tester, datasource, docs)
-        cls.delete_data(tester, datasource, docs)
+    def test(cls, tester, db, docs: List["BaseTestSchema"]):
+        cls.insert_data(tester, db, docs)
+        cls.basic_tests(tester, db, docs)
+        cls.delete_data(tester, db, docs)
 
 
 class IntervalTestSchema(BaseTestSchema):
@@ -240,7 +236,7 @@ class IntervalTestSchema(BaseTestSchema):
         return st.lists(cls.item_strategy(), **kwargs)
 
     @classmethod
-    def basic_tests(cls, tester, datasource, docs: List["IntervalTestSchema"]):
+    def basic_tests(cls, tester, db, docs: List["IntervalTestSchema"]):
 
         for doc in docs:
             # add half difference so it works for datatimes as well as ints
@@ -250,16 +246,16 @@ class IntervalTestSchema(BaseTestSchema):
             index_val = doc.index_field.left + half_diff
             labels = doc.index_labels
             labels["index_field"] = index_val
-            found_doc = cls.find_one(datasource, **labels)
+            found_doc = db.find_one(**labels)
             assert found_doc.same_values(doc)
             assert found_doc.same_index(doc)
 
     @classmethod
-    def test(cls, tester, datasource, docs: List["BaseTestSchema"]):
-        cls.insert_data(tester, datasource, docs)
-        cls.basic_tests(tester, datasource, docs)
-        cls.frame_test(tester, datasource, docs)
-        cls.delete_data(tester, datasource, docs)
+    def test(cls, tester, db, docs: List["BaseTestSchema"]):
+        cls.insert_data(tester, db, docs)
+        cls.basic_tests(tester, db, docs)
+        cls.frame_test(tester, db, docs)
+        cls.delete_data(tester, db, docs)
 
 
 @st.composite

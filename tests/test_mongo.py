@@ -10,7 +10,7 @@ from hypothesis import strategies as st
 import rframe
 from rframe.schema import UpdateError
 from rframe.interfaces import get_interface, MongoInterface
-
+from rframe.data_accessor import DataAccessor
 from .test_schemas import *
 
 DB_NAME = "rframe_tests"
@@ -36,7 +36,7 @@ class TestMongo(unittest.TestCase):
         client = pymongo.MongoClient(MONGO_URI)
         database = client[DB_NAME]
         self.collection = database[COLLECTION_NAME]
-
+        
     def tearDown(self):
         client = pymongo.MongoClient(MONGO_URI)
         client.drop_database(DB_NAME)
@@ -45,36 +45,36 @@ class TestMongo(unittest.TestCase):
     @settings(deadline=None)
     def test_simple_schema(self, docs: List[SimpleSchema]):
         self.collection.delete_many({})
-        datasource = self.collection
-        SimpleSchema.test(self, datasource, docs)
+        db = DataAccessor(SimpleSchema, self.collection)
+        SimpleSchema.test(self, db, docs)
 
     @given(SimpleMultiIndexSchema.list_strategy())
     @settings(deadline=None)
     def test_simple_multi_index(self, docs: List[SimpleMultiIndexSchema]):
         self.collection.delete_many({})
-        datasource = self.collection
-        SimpleMultiIndexSchema.test(self, datasource, docs)
+        db = DataAccessor(SimpleMultiIndexSchema, self.collection)
+        SimpleMultiIndexSchema.test(self, db, docs)
 
     @given(InterpolatingSchema.list_strategy())
     @settings(deadline=None)
     def test_interpolated(self, docs: InterpolatingSchema):
         self.collection.delete_many({})
-        datasource = self.collection
-        InterpolatingSchema.test(self, datasource, docs)
+        db = DataAccessor(InterpolatingSchema, self.collection)
+        InterpolatingSchema.test(self, db, docs)
 
     @given(IntegerIntervalSchema.list_strategy())
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     def test_integer_interval(self, docs: IntegerIntervalSchema):
         self.collection.delete_many({})
-        datasource = self.collection
-        IntegerIntervalSchema.test(self, datasource, docs)
+        db = DataAccessor(IntegerIntervalSchema, self.collection)
+        IntegerIntervalSchema.test(self, db, docs)
 
     @given(TimeIntervalSchema.list_strategy())
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     def test_time_interval(self, docs: TimeIntervalSchema):
         self.collection.delete_many({})
-        datasource = self.collection
-        TimeIntervalSchema.test(self, datasource, docs)
+        db = DataAccessor(TimeIntervalSchema, self.collection)
+        TimeIntervalSchema.test(self, db, docs)
 
     def test_interface_from_url(self):
         interface = get_interface(
@@ -83,7 +83,7 @@ class TestMongo(unittest.TestCase):
         self.assertIsInstance(interface, rframe.interfaces.MongoInterface)
 
     def test_ensure_index(self):
-        schema = AdvancedMultiIndexSchema
-        schema.ensure_index(self.collection)
-        name = "_".join([f"{name}_1" for name in schema.get_index_fields()])
+        db = DataAccessor(AdvancedMultiIndexSchema, self.collection)
+        db.init_db()
+        name = "_".join([f"{name}_1" for name in AdvancedMultiIndexSchema.get_index_fields()])
         self.assertIn(name, self.collection.index_information())
