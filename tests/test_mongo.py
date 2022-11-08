@@ -56,7 +56,7 @@ class TestMongo(unittest.TestCase):
         SimpleMultiIndexSchema.test(self, db, docs)
 
     @given(InterpolatingSchema.list_strategy())
-    @settings(deadline=None)
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much])
     def test_interpolated(self, docs: InterpolatingSchema):
         self.collection.delete_many({})
         db = DataAccessor(InterpolatingSchema, self.collection)

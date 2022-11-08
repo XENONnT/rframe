@@ -71,7 +71,7 @@ class TestRest(unittest.TestCase):
         SimpleMultiIndexSchema.test(self, db, docs)
 
     @given(InterpolatingSchema.list_strategy())
-    @settings(deadline=None)
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much])
     def test_interpolated(self, docs: InterpolatingSchema):
         self.tables[InterpolatingSchema].truncate()
         datasource = self.datasources[InterpolatingSchema]
