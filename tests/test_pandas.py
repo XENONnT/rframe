@@ -34,7 +34,7 @@ class TestPandas(unittest.TestCase):
         SimpleMultiIndexSchema.test(self, db, docs)
 
     @given(InterpolatingSchema.list_strategy())
-    @settings(deadline=None)
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     def test_interpolated(self, docs: InterpolatingSchema):
         db = DataAccessor(InterpolatingSchema, docs[0].dframe().head(0))
         InterpolatingSchema.test(self, db, docs)

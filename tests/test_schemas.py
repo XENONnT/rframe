@@ -192,7 +192,7 @@ class InterpolatingSchema(BaseTestSchema):
 
     @classmethod
     def list_strategy(cls, **overrides):
-        defaults = {"min_size": 3, "max_size": 5}
+        defaults = {"min_size": 3, "max_size": 10}
         kwargs = dict(defaults, **overrides)
         return super().list_strategy(**kwargs).map(sorted)
 
