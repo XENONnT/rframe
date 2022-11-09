@@ -6,6 +6,7 @@ from pydantic import BaseModel, ValidationError
 from pydantic.fields import FieldInfo, ModelField
 from typing import Any, Dict, List, Mapping, Optional, Union, Generator
 
+
 from .dispatchers import are_equal
 from .indexes import BaseIndex, Index, MultiIndex
 from .interfaces import get_interface
@@ -39,6 +40,19 @@ class BaseSchema(BaseModel):
             if name in cls.__fields__:
                 raise ValueError(f"Field name '{name}' is reserved and cannot be used.")
         return super().__init_subclass__()
+
+    @classmethod
+    def register_datasource(cls, datasource, name='data'):
+        """Register a datasource with this schema
+        """
+
+        if hasattr(cls, name):
+            raise ValueError(f"Datasource name '{name}' is already registered.")
+            
+        from rframe.data_accessor import DataAccessor
+
+        accessor = DataAccessor(cls, datasource)
+        setattr(cls, name, accessor)
 
     @classmethod
     def default_datasource(cls):
