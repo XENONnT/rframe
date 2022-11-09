@@ -3,7 +3,9 @@ import makefun
 import pandas as pd
 
 from pydantic import ValidationError
-from typing import Any, Generator, Optional, Union, List
+from typing import Any, Generator, Iterable, Optional
+
+from rframe.schema import DeletionError, InsertionError, UpdateError
 
 from . import BaseSchema
 from .interfaces.pandas import to_pandas
@@ -17,10 +19,22 @@ class DataAccessor:
         "find_docs",
         "find_df",
         "find_iter",
+        "min",
+        "max",
+        "unique",
+        "count",
     ]
 
     schema: BaseSchema
     storage: Any
+
+    @property
+    def index_names(self):
+        return tuple(self.schema.get_index_fields())
+
+    @property
+    def column_names(self):
+        return tuple(self.schema.get_column_fields())
 
     def __init__(self, schema, datasource):
         self.schema = schema
@@ -65,7 +79,7 @@ class DataAccessor:
     def _find_docs(self, skip=None, limit=None, sort=None, **labels):
         return list(self.find_iter(skip=skip, limit=limit, sort=sort, **labels))
 
-    def _find_iter(self, datasource=None, skip=None, limit=None, sort=None, **labels):
+    def _find_iter(self, skip=None, limit=None, sort=None, **labels):
         for doc in self._find(skip=skip, limit=limit, sort=sort, **labels):
             yield self.schema(**doc)
 
@@ -83,13 +97,111 @@ class DataAccessor:
         return df.set_index(index_fields)
 
     def _find_one(self, skip=None, sort=None, **labels) -> Optional[BaseSchema]:
-
         docs = self.find_docs(skip=skip, limit=1, sort=sort, **labels)
         if docs:
             return docs[0]
         return None
 
-    def insert(self, doc):
-        if not isinstance(doc, self.schema):
-            doc = self.schema(**doc)
-        return self.doc.save(self.storage)
+    def _min(self, fields=None, **labels) -> Any:
+        if fields is None:
+            fields = list(self.schema.__fields__)
+        elif isinstance(fields, str):
+            fields = [fields]
+        
+        query = self.schema.compile_query(self.storage, **labels)
+
+        result = query.min(fields)
+        if isinstance(result, dict):
+            result = { k: self.schema.validate_partial(**{k: v})
+                        for k,v in result.items() }
+        else:
+            result = self.schema.validate_partial(**{fields[0]: result})
+        return result
+
+    def _max(self, fields=None, **labels) -> Any:
+        if fields is None:
+            fields = list(self.schema.__fields__)
+        elif isinstance(fields, str):
+            fields = [fields]
+        
+        query = self.schema.compile_query(self.storage, **labels)
+
+        result = query.max(fields)
+        if isinstance(result, dict):
+            result = { k: self.schema.validate_partial(**{k: v})
+                        for k,v in result.items() }
+        else:
+            result = self.schema.validate_partial(**{fields[0]: result})
+        return result
+
+    def _unique(self, fields=None, **labels) -> Any:
+        if fields is None:
+            fields = list(self.schema.__fields__)
+        elif isinstance(fields, str):
+            fields = [fields]
+        
+        query = self.schema.compile_query(self.storage, **labels)
+
+        result = query.unique(fields)
+        if isinstance(result, dict):
+            result = { k: [self.schema.validate_partial(**{k: v}) for v in vs]
+                        for k, vs in result.items() }
+        else:
+            result = [self.schema.validate_partial(**{fields[0]: v}) for v in result]
+        return result
+
+    def _count(self, **labels):
+        query = self.schema.compile_query(self.storage, **labels)
+        return int(query.count())
+
+    def insert(self, docs, raise_on_error=True):
+        if not isinstance(docs, (list, tuple)):
+            docs = [docs]
+        
+        res = {
+            "success": [],
+            "failed": [],
+            "errors": [],
+        }
+        for doc in docs:
+            if not isinstance(doc, self.schema):
+                doc = self.schema(**doc)
+            try:
+                doc.save(self.storage)
+                res["success"].append(doc)
+            except (InsertionError, UpdateError) as e:
+                if raise_on_error:
+                    raise e
+                res["failed"].append(doc)
+                res["errors"].append(e)
+        if raise_on_error:
+            return res['success']
+        return res
+
+    def delete(self, docs, raise_on_error=True):
+        if not isinstance(docs, (list, tuple)):
+            docs = [docs]
+
+        res= {
+            "success": [],
+            "failed": [],
+            "errors": [],
+            }
+
+        for doc in docs:
+            if not isinstance(doc, self.schema):
+                doc = self.schema(**doc)
+
+            try:
+                doc.delete(self.storage)
+                res["success"].append(doc)
+            except DeletionError as e:
+                if raise_on_error:
+                    raise e
+
+        if raise_on_error:
+            return res["success"]
+        return res
+
+    def init_db(self):
+        self.schema.ensure_index(self.storage)
