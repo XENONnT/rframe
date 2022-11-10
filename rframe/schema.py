@@ -81,7 +81,8 @@ class BaseSchema(BaseModel):
     @classmethod
     def get_query_signature(cls, default=None):
         params = []
-        for name in cls.__fields__:
+        for name, field in cls.__fields__.items():
+            alias = field.alias
             for type_ in cls.mro():
                 if name in getattr(type_, "__annotations__", {}):
                     label_annotation = type_.__annotations__[name]
@@ -97,9 +98,21 @@ class BaseSchema(BaseModel):
                         inspect.Parameter.POSITIONAL_OR_KEYWORD,
                         default=default,
                         annotation=annotation,
-                    )
+                        )
                     params.append(param)
+
+                    if name == alias:
+                        break
+
+                    alias_param = param = inspect.Parameter(
+                        alias,
+                        inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                        default=default,
+                        annotation=annotation,
+                        )
+                    params.append(alias_param)
                     break
+                
         return inspect.Signature(params)
 
     @classmethod
