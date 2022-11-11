@@ -7,25 +7,11 @@ from typing import Any, Generator, Iterable, Optional
 
 from rframe.schema import DeletionError, InsertionError, UpdateError
 
-from . import BaseSchema
 from .interfaces.pandas import to_pandas
 
 
 class DataAccessor:
-    METHODS = [
-        "find",
-        "find_one",
-        "find_dicts",
-        "find_docs",
-        "find_df",
-        "find_iter",
-        "min",
-        "max",
-        "unique",
-        "count",
-    ]
-
-    schema: BaseSchema
+    schema: "BaseSchema"
     storage: Any
 
     @property
@@ -96,7 +82,7 @@ class DataAccessor:
             index_fields = index_fields[0]
         return df.set_index(index_fields)
 
-    def _find_one(self, skip=None, sort=None, **labels) -> Optional[BaseSchema]:
+    def _find_one(self, skip=None, sort=None, **labels) -> Optional["BaseSchema"]:
         docs = self.find_docs(skip=skip, limit=1, sort=sort, **labels)
         if docs:
             return docs[0]
