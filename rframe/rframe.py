@@ -12,6 +12,7 @@ from .interfaces import get_interface
 from .interfaces.pandas import to_pandas
 from .schema import BaseSchema, InsertionError, UpdateError
 from .utils import camel_to_snake, singledispatchmethod
+from .data_accessor import DataAccessor
 
 IndexLabel = Optional[Union[int, float, datetime, str, slice, List]]
 
@@ -22,7 +23,7 @@ class RemoteFrame:
     """
 
     schema: Type[BaseSchema]
-    db: Any
+    db: DataAccessor
 
     _lazy: bool = False
     _index = None
@@ -31,18 +32,19 @@ class RemoteFrame:
         self, schema: Type[BaseSchema], datasource: Any = None, lazy=False, **labels
     ) -> None:
         self.schema = schema
+        self.db = DataAccessor(schema, datasource)
         self._datasource = datasource
         self._labels = labels
         self._index = None
         self._lazy = lazy
 
-    @classmethod
-    def from_mongodb(cls, schema, url, db, collection, **kwargs) -> "RemoteFrame":
-        import pymongo
+    # @classmethod
+    # def from_mongodb(cls, schema, url, db, collection, **kwargs) -> "RemoteFrame":
+    #     import pymongo
 
-        db = pymongo.MongoClient(url, **kwargs)[db]
-        collection = db[collection]
-        return cls(schema, collection)
+    #     db = pymongo.MongoClient(url, **kwargs)[db]
+    #     collection = db[collection]
+    #     return cls(schema, collection)
 
     @property
     def datasource(self) -> Any:
@@ -52,7 +54,7 @@ class RemoteFrame:
 
     @property
     def df(self) -> pd.DataFrame:
-        return self.schema.find_df(self.datasource, **self._labels)
+        return self.db.find_df(**self._labels)
 
     @property
     def name(self) -> str:
@@ -87,12 +89,12 @@ class RemoteFrame:
 
     @property
     def size(self) -> int:
-        return self.schema.count(self.datasource, **self._labels)
+        return self.db.count(**self._labels)
 
     def head(self, n=10) -> pd.DataFrame:
         """Return first n documents as a pandas dataframe"""
         sort = list(self.schema.get_index_fields())
-        return self.schema.find_df(self.datasource, limit=n, sort=sort, **self._labels)
+        return self.db.find_df(limit=n, sort=sort, **self._labels)
 
     def isel(self, idx: Union[int, slice]):
         """Get a single document or slice by index"""
@@ -103,27 +105,27 @@ class RemoteFrame:
         skip = idx.start if idx.start else 0
         limit = idx.stop - skip if idx.stop is not None else None
         sort = list(self.schema.get_index_fields())
-        return self.schema.find_df(
-            self.datasource, skip=skip, limit=limit, sort=sort, **self._labels
+        return self.db.find_df(
+            skip=skip, limit=limit, sort=sort, **self._labels
         )
 
     def unique(self, columns: Union[str, List[str]] = None):
         """Return unique values for each column"""
         if columns is None:
             columns = self.columns
-        return self.schema.unique(self.datasource, fields=columns, **self._labels)
+        return self.db.unique(fields=columns, **self._labels)
 
     def min(self, columns: Union[str, List[str]]) -> Any:
         """Return the minimum value for column"""
         if columns is None:
             columns = self.columns
-        return self.schema.min(self.datasource, fields=columns, **self._labels)
+        return self.db.min(fields=columns, **self._labels)
 
     def max(self, columns: Union[str, List[str]]) -> Any:
         """Return the maximum value for column"""
         if columns is None:
             columns = self.columns
-        return self.schema.max(self.datasource, fields=columns, **self._labels)
+        return self.db.max(fields=columns, **self._labels)
 
     def sel(self, *args: IndexLabel, **kwargs: IndexLabel) -> pd.DataFrame:
         """select a subset of the data
@@ -148,7 +150,7 @@ class RemoteFrame:
             if all([label in merged for label in self.index_names]):
                 rf = rf.df
         else:
-            rf = self.schema.find_df(self.datasource, **merged)
+            rf = self.db.find_df(**merged)
 
         if len(extra):
             rf = RemoteFrame(self.schema, rf, lazy=self._lazy, **extra)
