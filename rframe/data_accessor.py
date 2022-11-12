@@ -22,6 +22,10 @@ class DataAccessor:
     def column_names(self):
         return tuple(self.schema.get_column_fields())
 
+    @property
+    def rframe(self):
+        return self.schema.rframe(self.storage)
+
     def __init__(self, schema, datasource):
         self.schema = schema
         self.storage = datasource
