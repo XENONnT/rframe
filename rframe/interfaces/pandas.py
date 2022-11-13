@@ -292,11 +292,17 @@ class PandasInterface(DatasourceInterface):
         return self.source.drop(index=index, inplace=True)
 
     def ensure_index(self, names, order=1):
-        for name in names:
-            if name not in self.source.index.names:
-                self.source.reset_index(inplace=True)
+        index_names = self.source.index.names
+        
+        if all([name in index_names for name in names]):
+            return
+
+        if any([name in index_names for name in names]):
+            self.source.reset_index(inplace=True)
+
         if len(names) == 1:
             names = names[0]
+            
         self.source.set_index(names, inplace=True)
 
     def initdb(self, schema):

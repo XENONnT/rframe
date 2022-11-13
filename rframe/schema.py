@@ -314,12 +314,6 @@ class BaseSchema(BaseModel):
         return cls(**data)
 
     @classmethod
-    def ensure_index(cls, datasource, **kwargs):
-        interface = get_interface(datasource, **kwargs)
-        names = list(cls.get_index_fields())
-        return interface.ensure_index(names)
-
-    @classmethod
     def initdb(cls, datasource, **kwargs):
         interface = get_interface(datasource, **kwargs)
         interface.initdb(cls)

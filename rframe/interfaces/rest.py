@@ -108,3 +108,6 @@ class RestInterface(DatasourceInterface):
     def delete(self, doc):
         logger.debug(f"REST api backend deleting document {doc}")
         return self.source.delete(doc)
+
+    def initdb(self, schema):
+        pass

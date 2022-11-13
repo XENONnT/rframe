@@ -320,6 +320,9 @@ class TinyDBInterface(DatasourceInterface):
             cond = cond & (where(k) == jsonable(v))
         return self.source.remove(cond)
 
+    def initdb(self, schema):
+        pass
+
 
 def overlap_query(target, left, right):
     query = target.noop()
