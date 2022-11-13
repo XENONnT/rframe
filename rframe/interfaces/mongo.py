@@ -549,10 +549,7 @@ class MongoInterface(DatasourceInterface):
     update = insert
 
     def ensure_index(self, names, order=pymongo.ASCENDING):
-        try:
-            self.source.ensure_index([(name, order) for name in names])
-        except TypeError:
-            self.source.create_index([(name, order) for name in names])
+        self.source.create_index([(name, order) for name in names])
 
     def delete(self, doc):
         index = to_mongo(doc.index_labels)

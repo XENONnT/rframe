@@ -228,6 +228,8 @@ class PandasMultiQuery(PandasBaseQuery):
 
 @DatasourceInterface.register_interface(pd.DataFrame)
 class PandasInterface(DatasourceInterface):
+    source: pd.DataFrame
+
     @classmethod
     def from_url(cls, url: str, **kwargs):
         if url.endswith(".csv"):
@@ -288,6 +290,18 @@ class PandasInterface(DatasourceInterface):
         if len(index) == 1:
             index = index[0]
         return self.source.drop(index=index, inplace=True)
+
+    def ensure_index(self, names, order=1):
+        for name in names:
+            if name not in self.source.index.names:
+                self.source.reset_index(inplace=True)
+        if len(names) == 1:
+            names = names[0]
+        self.source.set_index(names, inplace=True)
+
+    def initdb(self, schema):
+        index_names = list(schema.get_index_fields())
+        self.ensure_index(index_names)
 
 
 @singledispatch

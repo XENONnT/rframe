@@ -320,6 +320,11 @@ class BaseSchema(BaseModel):
         return interface.ensure_index(names)
 
     @classmethod
+    def initdb(cls, datasource, **kwargs):
+        interface = get_interface(datasource, **kwargs)
+        interface.initdb(cls)
+
+    @classmethod
     def unique(cls, datasource=None, fields: Union[str, List[str]] = None, **labels):
         if fields is None:
             fields = list(cls.get_column_fields())
