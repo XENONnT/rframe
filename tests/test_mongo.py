@@ -84,6 +84,5 @@ class TestMongo(unittest.TestCase):
 
     def test_ensure_index(self):
         db = DataAccessor(AdvancedMultiIndexSchema, self.collection)
-        db.init_db()
         name = "_".join([f"{name}_1" for name in AdvancedMultiIndexSchema.get_index_fields()])
         self.assertIn(name, self.collection.index_information())
