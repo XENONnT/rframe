@@ -58,7 +58,7 @@ class DataAccessor:
         query = self.schema.compile_query(datasource=self.storage, **labels)
         for doc in query.iter(limit=limit, skip=skip, sort=sort):
             try:
-                self.schema.validate(doc)
+                doc = self.schema(**doc).dict()
             except ValidationError:
                 continue
             yield doc
