@@ -13,6 +13,7 @@ from .interfaces.pandas import to_pandas
 class DataAccessor:
     schema: "BaseSchema"
     storage: Any
+    initialized: bool = False
 
     @property
     def index_names(self):
@@ -26,7 +27,7 @@ class DataAccessor:
     def rframe(self):
         return self.schema.rframe(self.storage)
 
-    def __init__(self, schema, datasource, initdb=True):
+    def __init__(self, schema, datasource, initdb=False):
         self.schema = schema
         self.storage = datasource
 
@@ -148,6 +149,9 @@ class DataAccessor:
         return int(query.count())
 
     def insert(self, docs, raise_on_error=True):
+        if not self.initialized:
+            self.initdb()
+            
         if not isinstance(docs, (list, tuple)):
             docs = [docs]
         
@@ -198,3 +202,4 @@ class DataAccessor:
 
     def initdb(self):
         self.schema.initdb(self.storage)
+        self.initialized = True
