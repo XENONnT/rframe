@@ -26,7 +26,7 @@ class DataAccessor:
     def rframe(self):
         return self.schema.rframe(self.storage)
 
-    def __init__(self, schema, datasource, initdb=Trye):
+    def __init__(self, schema, datasource, initdb=True):
         self.schema = schema
         self.storage = datasource
 
@@ -48,8 +48,9 @@ class DataAccessor:
             )
             method = makefun.create_function(signature, impl, func_name=name)
             setattr(self, name[1:], method)
-
-        self.initdb()
+            
+        if initdb:
+            self.initdb()
 
     def _find(
         self, skip=None, limit=None, sort=None, **labels
