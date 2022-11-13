@@ -314,10 +314,9 @@ class BaseSchema(BaseModel):
         return cls(**data)
 
     @classmethod
-    def ensure_index(cls, datasource, **kwargs):
+    def initdb(cls, datasource, **kwargs):
         interface = get_interface(datasource, **kwargs)
-        names = list(cls.get_index_fields())
-        return interface.ensure_index(names)
+        interface.initdb(cls)
 
     @classmethod
     def unique(cls, datasource=None, fields: Union[str, List[str]] = None, **labels):

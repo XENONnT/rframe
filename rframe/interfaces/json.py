@@ -293,6 +293,8 @@ class JsonInterface(DatasourceInterface):
     def delete(self, doc):
         del self.source[self._find(doc)]
 
+    def initdb(self, schema):
+        pass
 
 def to_json(obj):
     return jsonable(obj)
