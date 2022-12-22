@@ -42,7 +42,7 @@ class BaseSchema(BaseModel):
         return super().__init_subclass__()
 
     @classmethod
-    def register_datasource(cls, datasource, name='data'):
+    def register_datasource(cls, datasource, name='data', initialize=False):
         """Register a datasource with this schema
         """
 
@@ -51,7 +51,7 @@ class BaseSchema(BaseModel):
             
         from rframe.data_accessor import DataAccessor
 
-        accessor = DataAccessor(cls, datasource)
+        accessor = DataAccessor(cls, datasource, initdb=initialize)
         setattr(cls, name, accessor)
 
     @classmethod
