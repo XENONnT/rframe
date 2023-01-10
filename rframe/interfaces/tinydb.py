@@ -235,6 +235,12 @@ class TinyDBInterface(DatasourceInterface):
         name = index.name
         target = where(name)
 
+        if label is None:
+            query = target.noop()
+            selection = TinyDBSelection(query)
+            return TinyDBQuery(index, {index.name: label}, 
+                            self.source, selection)
+
         if not isinstance(label, list):
             label = [label]
 
@@ -264,6 +270,12 @@ class TinyDBInterface(DatasourceInterface):
 
         label = jsonable(label)
 
+        if label is None:
+            query = target.noop()
+            selection = TinyDBSelection(query)
+            return TinyDBQuery(index, {index.name: label}, 
+                            self.source, selection)
+
         before_query = target < label
         after_query = target >= label
         before_selection = TinyDBSelection(before_query, sort=name, select=-1)
@@ -283,6 +295,9 @@ class TinyDBInterface(DatasourceInterface):
         selection_lists = []
         processed_labels = {}
         for idx in index.indexes:
+            label = labels[idx.name]
+            if label is None:
+                continue
             query = self.compile_query(idx, labels[idx.name])
             processed_labels.update(query.labels)
             selection_lists.append(query.selections)
