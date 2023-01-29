@@ -1,9 +1,10 @@
 import datetime
+import pytz
 from typing import ClassVar, Literal, Mapping, Optional, TypeVar, Union
 
 import pydantic
 from pydantic import BaseModel, root_validator, ValidationError
-
+import pandas as pd
 
 LabelType = Union[int, str, datetime.datetime]
 
@@ -48,6 +49,8 @@ class Interval(BaseModel):
 
         if v > cls._max:
             raise ValueError(f"{cls} boundary must be less than {cls._max}.")
+
+        return v
 
     @classmethod
     def validate_field(cls, v, field):
@@ -94,9 +97,9 @@ class Interval(BaseModel):
     def check_non_zero_length(cls, values):
         left, right = values.get("left"), values.get("right")
 
-        cls._validate_boundary(left)
+        left = cls._validate_boundary(left)
 
-        cls._validate_boundary(right)
+        right = cls._validate_boundary(right)
 
         if left > right:
             raise ValueError("Interval left must be less than right.")
@@ -173,3 +176,21 @@ class TimeInterval(Interval):
 
     left: datetime.datetime
     right: datetime.datetime = MAX_DATETIME
+
+    @classmethod
+    def _validate_boundary(cls, value):
+        if isinstance(value, pd.Timestamp):
+            value = value.to_pydatetime()
+
+        if value.tzinfo is not None:
+            if value.tzinfo.utcoffset(value) is not None:
+                value = value.astimezone(pytz.utc)
+            value = value.replace(tzinfo=None)
+
+        if value < cls._min:
+            raise ValueError(f"{cls} boundary must be larger than {cls._min}.")
+
+        if value > cls._max:
+            raise ValueError(f"{cls} boundary must be less than {cls._max}.")
+        
+        return value
