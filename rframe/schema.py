@@ -401,7 +401,7 @@ class BaseSchema(BaseModel):
             # Single document found, update
             try:
                 existing[0].__pre_update(datasource, self)
-                interface.update(self)
+                interface.update(existing[0].index_labels , self)
             except Exception as e:
                 existing[0].__post_update(datasource, self, exception=e)
                 raise e

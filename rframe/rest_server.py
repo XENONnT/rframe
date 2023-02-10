@@ -37,6 +37,7 @@ class SchemaRouter(APIRouter):
         prefix: Optional[str] = None,
         query_path="/query",
         insert_path="/insert",
+        update_path="/update",
         delete_path="/delete",
         summary_path="/summary",
         tags: Optional[List[Union[str, Enum]]] = None,
@@ -91,7 +92,7 @@ class SchemaRouter(APIRouter):
             self._add_api_route(
                 insert_path,
                 self._insert_one_route(),
-                methods=["PUT"],
+                methods=["POST"],
                 response_model=Optional[self.schema],  # type: ignore
                 summary=f"Insert One {self.schema.__name__} document",
                 dependencies=can_write,
@@ -103,6 +104,15 @@ class SchemaRouter(APIRouter):
                 methods=["POST"],
                 response_model=List[Union[self.schema, str]],  # type: ignore
                 summary=f"Insert multiple {self.schema.__name__} documents",
+                dependencies=can_write,
+            )
+
+            self._add_api_route(
+                update_path,
+                self._update_one_route(),
+                methods=["PUT"],
+                response_model=Optional[self.schema],  # type: ignore
+                summary=f"Insert One {self.schema.__name__} document",
                 dependencies=can_write,
             )
 
@@ -324,6 +334,26 @@ class SchemaRouter(APIRouter):
         )
         return makefun.create_function(
             signature, insert, func_name=f"{self.schema.__name__}_insert_one"
+        )
+
+    def _update_one_route(self, *args: Any, **kwargs: Any) -> Callable[..., Any]:
+        def update(doc: BaseSchema) -> BaseSchema:
+            try:
+                doc.save(self.datasource)
+                return doc
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=str(e))
+
+        parameter = inspect.Parameter(
+            "doc",
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            annotation=self.schema,
+        )
+        signature = inspect.Signature(
+            parameters=[parameter], return_annotation=self.schema
+        )
+        return makefun.create_function(
+            signature, update, func_name=f"{self.schema.__name__}_update_one"
         )
 
     def _insert_many_route(self, *args: Any, **kwargs: Any) -> Callable[..., Any]:

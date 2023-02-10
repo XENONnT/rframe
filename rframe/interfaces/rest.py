@@ -103,7 +103,10 @@ class RestInterface(DatasourceInterface):
         logger.debug(f"REST api backend inserting document {doc}")
         return self.source.insert(doc)
 
-    update = insert
+    def update(self, index_labels, doc):
+        logger.debug(f"REST api backend updating document {doc}")
+        return self.source.update(index_labels, doc)
+
 
     def delete(self, doc):
         logger.debug(f"REST api backend deleting document {doc}")

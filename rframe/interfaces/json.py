@@ -1,6 +1,7 @@
 from functools import singledispatch
 import json
 import fsspec
+from rframe.dispatchers import are_equal
 
 from toolz import groupby
 from loguru import logger
@@ -280,9 +281,10 @@ class JsonInterface(DatasourceInterface):
         doc = to_json(doc.dict())
         self.source.append(doc)
 
-    def update(self, doc):
+    def update(self, index_labels, doc):
         for i, d in enumerate(self.source):
-            if doc.same_index(doc.__class__(**d)):
+            d = doc.__class__(**d)
+            if are_equal(index_labels, d.index_labels):
                 self.source[i] = to_json(doc.dict())
                 break
         else:

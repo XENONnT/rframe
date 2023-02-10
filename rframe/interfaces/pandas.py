@@ -281,7 +281,11 @@ class PandasInterface(DatasourceInterface):
             index = index[0]
         self.source.loc[index, :] = doc.column_values
 
-    update = insert
+    def update(self, index_labels, doc):
+        index = tuple(to_pandas(index_labels[f]) for f in doc.get_index_fields())
+        if len(index) == 1:
+            index = index[0]
+        self.source.loc[index, :] = doc.column_values
 
     def delete(self, doc):
         index = doc.index_labels_tuple
