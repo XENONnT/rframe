@@ -533,7 +533,17 @@ class MongoInterface(DatasourceInterface):
         """
         from rframe.schema import InsertionError
 
-        index = to_mongo(doc.index_labels)
+        data = to_mongo(doc.dict())
+        try:
+            self.source.insert_one(data)
+            return doc
+        except Exception as e:
+            raise InsertionError(f"Mongodb has rejected this insertion:\n {e} ")
+
+    def update(self, index_labels, doc):
+        from rframe.schema import InsertionError
+
+        index = to_mongo(index_labels)
         try:
             doc = self.source.find_one_and_update(
                 index,
@@ -545,8 +555,6 @@ class MongoInterface(DatasourceInterface):
             return doc
         except Exception as e:
             raise InsertionError(f"Mongodb has rejected this insertion:\n {e} ")
-
-    update = insert
 
     def ensure_index(self, names, order=pymongo.ASCENDING):
         self.source.create_index([(name, order) for name in names])

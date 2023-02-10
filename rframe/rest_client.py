@@ -7,7 +7,7 @@ from numpy import isin
 from abc import ABC, abstractmethod
 
 from .utils import jsonable
-from .interfaces.json import from_json
+from .interfaces.json import from_json, to_json
 
 
 class BaseRestClient(ABC):
@@ -32,6 +32,7 @@ class BaseRestClient(ABC):
 class RestClient(BaseRestClient):
     QUERY_PATH = "/query"
     INSERT_PATH = "/insert"
+    UPDATE_PATH = "/update"
     DELETE_PATH = "/delete"
     SUMMARY_PATH = "/summary"
 
@@ -55,6 +56,10 @@ class RestClient(BaseRestClient):
     @property
     def insert_url(self):
         return self.base_url.rstrip("/") + self.INSERT_PATH
+
+    @property
+    def update_url(self):
+        return self.base_url.rstrip("/") + self.UPDATE_PATH
 
     @property
     def delete_url(self):
@@ -85,14 +90,21 @@ class RestClient(BaseRestClient):
 
     def insert(self, doc):
         data = doc.json()
-        r = self.client.put(
+        r = self.client.post(
             self.insert_url, headers=self.headers, data=data, auth=self.auth
         )
         with logger.catch():
             r.raise_for_status()
         return r.json()
 
-    update = insert
+    def update(self, index_labels: dict, doc: "BaseSchema"):
+        data = doc.json()
+        r = self.client.popust(
+            self.update_url, headers=self.headers, data=data, auth=self.auth
+        )
+        with logger.catch():
+            r.raise_for_status()
+        return r.json()
 
     def delete(self, doc):
         data = doc.json()
