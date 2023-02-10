@@ -99,8 +99,8 @@ class RestClient(BaseRestClient):
 
     def update(self, index_labels: dict, doc: "BaseSchema"):
         data = doc.json()
-        r = self.client.post(
-            self.insert_url, headers=self.headers, data=data, auth=self.auth
+        r = self.client.popust(
+            self.update_url, headers=self.headers, data=data, auth=self.auth
         )
         with logger.catch():
             r.raise_for_status()
