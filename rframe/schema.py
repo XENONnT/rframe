@@ -1,8 +1,10 @@
+from collections import defaultdict
 import inspect
+from itertools import product
 import json
 
 import pandas as pd
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ValidationError, validate_model
 from pydantic.fields import FieldInfo, ModelField
 from typing import Any, Dict, List, Mapping, Optional, Union, Generator
 
@@ -188,20 +190,37 @@ class BaseSchema(BaseModel):
         return rframe.RemoteFrame(cls, datasource)
 
     @classmethod
+    def _validate_labels(cls, **labels):
+        """Validate labels against schema"""
+        labels = [
+            [(name, l) for l in label] if isinstance(label, list) else [(name, label)]
+            for name, label in labels.items()
+        ]
+        validated = []
+        for label_vals in product(*labels):
+            label_dict = dict(label_vals)
+            valid_dict, names, error = validate_model(cls, label_dict)
+            if len(valid_dict) < len(label_dict):
+                raise error
+            validated.append(valid_dict)
+        labels = defaultdict(list)
+        for d in validated:
+            for k, v in d.items():
+                labels[k].append(v)
+        labels = {k: v[0] if len(v) == 1 else v for k, v in labels.items()}
+        return labels
+
+    @classmethod
     def extract_labels(cls, **kwargs):
         """Extract query labels from kwargs
 
         returns extracted labels and remaining kwargs
         """
-        labels = {}
+        labels = {k:v for k,v in kwargs.items() if k in cls.__fields__ and v is not None}
+        labels = cls._validate_labels(**labels)
 
-        for name, field in cls.__fields__.items():
-            label = kwargs.pop(name, None)
-            if label is None:
-                label = kwargs.pop(field.alias, None)
-            if label is None:
-                continue
-            labels[name] = label
+        labels = {k:v for k,v in labels.items() if k in kwargs}
+        kwargs = {k:v for k,v in kwargs.items() if k not in labels}
 
         return labels, kwargs
 
