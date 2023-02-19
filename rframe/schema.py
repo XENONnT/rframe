@@ -2,7 +2,7 @@ import inspect
 import json
 
 import pandas as pd
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ValidationError, validate_model
 from pydantic.fields import FieldInfo, ModelField
 from typing import Any, Dict, List, Mapping, Optional, Union, Generator
 
@@ -193,15 +193,14 @@ class BaseSchema(BaseModel):
 
         returns extracted labels and remaining kwargs
         """
-        labels = {}
 
-        for name, field in cls.__fields__.items():
-            label = kwargs.pop(name, None)
-            if label is None:
-                label = kwargs.pop(field.alias, None)
-            if label is None:
-                continue
-            labels[name] = label
+        labels, _, error = validate_model(cls, kwargs)
+
+        if error is not None:
+            raise error
+
+        labels = {k:v for k,v in labels.items() if k in kwargs}        
+        kwargs = {k:v for k,v in kwargs.items() if k not in labels}
 
         return labels, kwargs
 
