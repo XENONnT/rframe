@@ -14,6 +14,8 @@ from typing import (
     Union,
 )
 
+from rframe.interfaces.json import from_json
+
 from .schema import BaseSchema
 from .utils import camel_to_snake
 
@@ -275,6 +277,7 @@ class SchemaRouter(APIRouter):
         def query_func_impl(
             limit: int = None, skip: int = None, sort=None, **kwargs
         ) -> List[BaseSchema]:
+            kwargs = {k: from_json(v) for k, v in kwargs.items() if v is not None}
             query = self.schema.compile_query(self.datasource, **kwargs)
             return [
                 self.schema(**d)

@@ -13,6 +13,8 @@ import pandas as pd
 from pydantic import BaseModel
 
 from pymongo.collection import Collection
+
+from rframe.interfaces.json import from_json
 from ..types import Interval
 
 from ..indexes import Index, InterpolatingIndex, IntervalIndex, MultiIndex
@@ -446,9 +448,30 @@ class MongoInterface(DatasourceInterface):
 
         label = to_mongo(label)
 
+        if isinstance(label, dict):
+            label = from_json(label)
+
         if label is None or label == slice(None):
             labels = {index.name: label}
             return MongoAggregation(index, labels, self.source, [])
+        
+        if isinstance(label, slice):
+            start = label.start
+            stop = label.stop
+            step = label.step
+            if step is None:
+                labels = {index.name: label}
+                pipeline = mongo_overlap_query(index.name, (start, stop))
+                return MongoAggregation(index, labels, self.source, pipeline)
+            else:
+                # create the range of values manually so it works with non-numeric values
+                
+                label = []
+                val = start
+                while val < stop:
+                    label.append(val)
+                    val += step
+
         limit = 1 if others is None else others
 
         if not isinstance(label, list):
