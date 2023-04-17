@@ -78,7 +78,7 @@ class DataAccessor:
         for doc in self._find(skip=skip, limit=limit, sort=sort, **labels):
             yield self.schema(**doc)
 
-    def _find_df(self, skip=None, limit=None, sort=None, **labels) -> pd.DateOffset:
+    def _find_df(self, skip=None, limit=None, sort=None, **labels) -> pd.DataFrame:
         docs = [
             to_pandas(d)
             for d in self._find_dicts(skip=skip, limit=limit, sort=sort, **labels)
