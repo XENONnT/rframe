@@ -59,6 +59,7 @@ class DataAccessor:
         """Internal find function, performs data validation but
         returns raw dicts, not schema instances.
         """
+        labels = {k: v for k, v in labels.items() if v is not None}
         query = self.schema.compile_query(datasource=self.storage, **labels)
         for doc in query.iter(limit=limit, skip=skip, sort=sort):
             try:
@@ -68,16 +69,16 @@ class DataAccessor:
             yield doc
 
     def _find_dicts(self, skip=None, limit=None, sort=None, **labels):
-        return list(self.find(skip=skip, limit=limit, sort=sort, **labels))
+        return list(self._find(skip=skip, limit=limit, sort=sort, **labels))
 
     def _find_docs(self, skip=None, limit=None, sort=None, **labels):
-        return list(self.find_iter(skip=skip, limit=limit, sort=sort, **labels))
+        return list(self._find_iter(skip=skip, limit=limit, sort=sort, **labels))
 
     def _find_iter(self, skip=None, limit=None, sort=None, **labels):
         for doc in self._find(skip=skip, limit=limit, sort=sort, **labels):
             yield self.schema(**doc)
 
-    def _find_df(self, skip=None, limit=None, sort=None, **labels) -> pd.DateOffset:
+    def _find_df(self, skip=None, limit=None, sort=None, **labels) -> pd.DataFrame:
         docs = [
             to_pandas(d)
             for d in self._find_dicts(skip=skip, limit=limit, sort=sort, **labels)
@@ -91,7 +92,7 @@ class DataAccessor:
         return df.set_index(index_fields)
 
     def _find_one(self, skip=None, sort=None, **labels) -> Optional["BaseSchema"]:
-        docs = self.find_docs(skip=skip, limit=1, sort=sort, **labels)
+        docs = self._find_docs(skip=skip, limit=1, sort=sort, **labels)
         if docs:
             return docs[0]
         return None
@@ -102,6 +103,7 @@ class DataAccessor:
         elif isinstance(fields, str):
             fields = [fields]
         
+        labels = {k: v for k, v in labels.items() if v is not None}
         query = self.schema.compile_query(self.storage, **labels)
 
         result = query.min(fields)
@@ -117,7 +119,8 @@ class DataAccessor:
             fields = list(self.schema.__fields__)
         elif isinstance(fields, str):
             fields = [fields]
-        
+
+        labels = {k: v for k, v in labels.items() if v is not None}
         query = self.schema.compile_query(self.storage, **labels)
 
         result = query.max(fields)
@@ -133,7 +136,8 @@ class DataAccessor:
             fields = list(self.schema.__fields__)
         elif isinstance(fields, str):
             fields = [fields]
-        
+
+        labels = {k: v for k, v in labels.items() if v is not None}
         query = self.schema.compile_query(self.storage, **labels)
 
         result = query.unique(fields)
@@ -145,6 +149,7 @@ class DataAccessor:
         return result
 
     def _count(self, **labels):
+        labels = {k: v for k, v in labels.items() if v is not None}
         query = self.schema.compile_query(self.storage, **labels)
         return int(query.count())
 
