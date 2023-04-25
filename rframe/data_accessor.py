@@ -1,3 +1,8 @@
+"""
+This code provides a way to interact with a REST API,
+allowing a Python client to query, insert, update, and delete data from the API,
+as well as retrieve summary statistics about the data.
+"""
 import inspect
 import makefun
 import pandas as pd
@@ -11,6 +16,12 @@ from .interfaces.pandas import to_pandas
 
 
 class DataAccessor:
+    """
+    This class provides an interface for interacting
+    with data in a storage and, utilizes Pydantic for data
+    validation. It provides methods for querying data, adding new data,
+    removing existing data, and for initializing the database.
+    """
     schema: "BaseSchema"
     storage: Any
     initialized: bool = False
@@ -49,7 +60,7 @@ class DataAccessor:
             )
             method = makefun.create_function(signature, impl, func_name=name)
             setattr(self, name[1:], method)
-            
+
         if initdb:
             self.initdb()
 
@@ -102,7 +113,7 @@ class DataAccessor:
             fields = list(self.schema.__fields__)
         elif isinstance(fields, str):
             fields = [fields]
-        
+
         labels = {k: v for k, v in labels.items() if v is not None}
         query = self.schema.compile_query(self.storage, **labels)
 
@@ -156,10 +167,10 @@ class DataAccessor:
     def insert(self, docs, raise_on_error=True):
         if not self.initialized:
             self.initdb()
-            
+
         if not isinstance(docs, (list, tuple)):
             docs = [docs]
-        
+
         res = {
             "success": [],
             "failed": [],
