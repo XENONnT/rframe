@@ -91,9 +91,9 @@ class RestClient(BaseRestClient):
         return data
 
     def insert(self, doc):
-        data = doc.json()
+        data = {"doc": jsonable(doc)}
         r = self.client.post(
-            self.insert_url, headers=self.headers, data=data, auth=self.auth
+            self.insert_url, headers=self.headers, json=data, auth=self.auth
         )
         with logger.catch():
             r.raise_for_status()
@@ -102,9 +102,9 @@ class RestClient(BaseRestClient):
         return r.json()
 
     def update(self, index_labels: dict, doc: "BaseSchema"):
-        data = doc.json()
+        data = {"doc": jsonable(doc)}
         r = self.client.popust(
-            self.update_url, headers=self.headers, data=data, auth=self.auth
+            self.update_url, headers=self.headers, json=data, auth=self.auth
         )
         with logger.catch():
             r.raise_for_status()
