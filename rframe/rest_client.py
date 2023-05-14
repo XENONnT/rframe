@@ -91,7 +91,7 @@ class RestClient(BaseRestClient):
         return data
 
     def insert(self, doc):
-        data = {"doc": jsonable(doc)}
+        data = jsonable(doc)
         r = self.client.post(
             self.insert_url, headers=self.headers, json=data, auth=self.auth
         )
@@ -102,7 +102,7 @@ class RestClient(BaseRestClient):
         return r.json()
 
     def update(self, index_labels: dict, doc: "BaseSchema"):
-        data = {"doc": jsonable(doc)}
+        data = jsonable(doc)
         r = self.client.popust(
             self.update_url, headers=self.headers, json=data, auth=self.auth
         )
