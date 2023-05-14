@@ -84,6 +84,8 @@ class RestClient(BaseRestClient):
 
         with logger.catch():
             r.raise_for_status()
+        if r.status_code not in [200, 201]:
+            raise ValueError("Failed to query server.")
         data = r.json()
         data = from_json(data)
         return data
@@ -95,6 +97,8 @@ class RestClient(BaseRestClient):
         )
         with logger.catch():
             r.raise_for_status()
+        if r.status_code not in [200, 201]:
+            raise ValueError("Failed to insert on server.")
         return r.json()
 
     def update(self, index_labels: dict, doc: "BaseSchema"):
@@ -104,6 +108,8 @@ class RestClient(BaseRestClient):
         )
         with logger.catch():
             r.raise_for_status()
+        if r.status_code not in [200, 201]:
+            raise ValueError("Failed to update on server.")
         return r.json()
 
     def delete(self, doc):
@@ -113,6 +119,8 @@ class RestClient(BaseRestClient):
         )
         with logger.catch():
             r.raise_for_status()
+        if r.status_code not in [200, 201]:
+            raise ValueError("Failed to delete from server.")
         return r.json()
 
     def unique(self, fields: List[str], **labels):
@@ -129,6 +137,8 @@ class RestClient(BaseRestClient):
         )
         with logger.catch():
             r.raise_for_status()
+        if r.status_code not in [200, 201]:
+            raise ValueError("Failed to fetch unique from server.")
         data = r.json()
 
         results = {field: data[field]["unique"] for field in fields}
@@ -154,6 +164,8 @@ class RestClient(BaseRestClient):
 
         with logger.catch():
             r.raise_for_status()
+        if r.status_code not in [200, 201]:
+            raise ValueError("Failed to fetch max from server.")
         data = r.json()
 
         results = {field: data[field]["max"] for field in fields}
@@ -178,6 +190,8 @@ class RestClient(BaseRestClient):
 
         with logger.catch():
             r.raise_for_status()
+        if r.status_code not in [200, 201]:
+            raise ValueError("Failed to fetch min from server.")
         data = r.json()
 
         results = {field: data[field]["min"] for field in fields}
@@ -199,6 +213,8 @@ class RestClient(BaseRestClient):
 
         with logger.catch():
             r.raise_for_status()
+        if r.status_code not in [200, 201]:
+            raise ValueError("Failed to fetch count from server.")
         data = r.json()
         cnt = data.get("count", None)
         if cnt is None:
@@ -226,6 +242,8 @@ class RestClient(BaseRestClient):
 
         with logger.catch():
             r.raise_for_status()
+        if r.status_code not in [200, 201]:
+            raise ValueError("Failed to fetch summary from server.")
         data = r.json()
         data = from_json(data)
         if len(fields) == 1:
