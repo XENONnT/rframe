@@ -24,7 +24,7 @@ class PandasBaseQuery(BaseDataQuery):
     def labels(self):
         return {self.column: self.label}
 
-    def apply_selection(self, df):
+    def apply_selection(self, df, label):
         raise NotImplementedError
 
     def execute(self, limit: int = None, skip: int = None, sort=None):
@@ -40,7 +40,7 @@ class PandasBaseQuery(BaseDataQuery):
             elif isinstance(sort, dict):
                 sort = list(sort)
             df = self.df.sort_values(sort)
-        df = self.apply_selection(df)
+        df = self.apply_selection(df, self.label)
 
         if df.index.names or df.index.name:
             df = df.reset_index()
@@ -57,7 +57,7 @@ class PandasBaseQuery(BaseDataQuery):
     def min(self, fields: Union[str, List[str]]):
         if isinstance(fields, str):
             fields = [fields]
-        df = self.apply_selection(self.df)
+        df = self.apply_selection(self.df, self.label)
         results = {}
         for field in fields:
             if field in df.index.names:
@@ -71,7 +71,7 @@ class PandasBaseQuery(BaseDataQuery):
     def max(self, fields: Union[str, List[str]]):
         if isinstance(fields, str):
             fields = [fields]
-        df = self.apply_selection(self.df)
+        df = self.apply_selection(self.df, self.label)
         results = {}
         for field in fields:
             if field in df.index.names:
@@ -87,7 +87,7 @@ class PandasBaseQuery(BaseDataQuery):
     ) -> Union[List[Any], Dict[str, List[Any]]]:
         if isinstance(fields, str):
             fields = [fields]
-        df = self.apply_selection(self.df)
+        df = self.apply_selection(self.df, self.label)
 
         results = {}
         for field in fields:
@@ -102,19 +102,19 @@ class PandasBaseQuery(BaseDataQuery):
         return results
 
     def count(self):
-        df = self.apply_selection(self.df)
+        df = self.apply_selection(self.df, self.label)
         return len(df)
 
 
 class PandasSimpleQuery(PandasBaseQuery):
-    def apply_selection(self, df):
-        if self.label is None:
+    def apply_selection(self, df, label):
+        if label is None:
             return df
+        
         if self.column in df.index.names:
             df = df.reset_index()
         if self.column not in df.columns:
             raise KeyError(self.column)
-        label = self.label
         if isinstance(label, slice):
             if label.step is None:
                 ge = df[self.column] >= label.start
@@ -130,16 +130,8 @@ class PandasSimpleQuery(PandasBaseQuery):
 
 
 class PandasIntervalQuery(PandasBaseQuery):
-    def apply_selection(self, df):
-        if self.label is None:
-            return df
-        if self.column in df.index.names:
-            df = df.reset_index()
-        if self.column not in df.columns:
-            raise KeyError(self.column)
-        df = df.set_index(self.column)
 
-        interval = self.label
+    def as_interval(self, interval):
         if isinstance(interval, tuple):
             left, right = interval
         elif isinstance(interval, dict):
@@ -154,14 +146,37 @@ class PandasIntervalQuery(PandasBaseQuery):
             left = pd.to_datetime(left)
         if isinstance(right, datetime):
             right = pd.to_datetime(right)
-        interval = pd.Interval(left, right)
+
+        return pd.Interval(left, right)
+
+    def apply_selection(self, df, label):
+
+        if label is None:
+            return df
+
+        if isinstance(label, list):
+            intervals = set([self.as_interval(lbl) for lbl in label])
+            return pd.concat([self.apply_selection(df, lbl) for lbl in intervals])
+        
+        interval = self.as_interval(label)
+
+        if self.column in df.index.names:
+            df = df.reset_index()
+        if self.column not in df.columns:
+            raise KeyError(self.column)
+        df = df.set_index(self.column)
+        
         return df[df.index.overlaps(interval)]
 
 
 class PandasInterpolationQuery(PandasBaseQuery):
-    def apply_selection(self, df, limit=1):
-        if self.label is None:
+    def apply_selection(self, df, label, limit=1):
+        if label is None:
             return df
+        
+        if isinstance(label, list):
+            return pd.concat([self.apply_selection(df, lbl) for lbl in label])
+        
         if self.column in df.index.names:
             df = df.reset_index()
 
@@ -171,14 +186,14 @@ class PandasInterpolationQuery(PandasBaseQuery):
         rows = []
         # select all values before requested values
         idx_column = df[self.column]
-        before = df[idx_column <= self.label]
+        before = df[idx_column <= label]
         if len(before):
             # if there are values after `value`, we find the closest one
             before = before.sort_values(self.column, ascending=False).head(limit)
             rows.append(before)
 
         # select all values after requested values
-        after = df[idx_column > self.label]
+        after = df[idx_column > label]
         if len(after):
             # same as before
             after = after.sort_values(self.column, ascending=True).head(limit)
@@ -193,25 +208,26 @@ class PandasMultiQuery(PandasBaseQuery):
         self.index = index
         self.df = df
         self.queries = queries
+        self.label = [q.label for q in queries]
 
     @property
     def labels(self):
         return {query.column: query.label for query in self.queries}
 
-    def apply_selection(self, df):
+    def apply_selection(self, df, labels):
         if len(self.queries) == 1:
-            return self.queries[0].apply_selection(df)
+            return self.queries[0].apply_selection(df, labels[0])
 
-        for query in self.queries:
+        for query, label in zip(self.queries, labels):
             if isinstance(query, PandasInterpolationQuery):
                 selections = []
                 others = [q.column for q in self.queries if q is not query]
                 if not others:
-                    df = query.apply_selection(df)
+                    df = query.apply_selection(df, label)
                     continue
 
                 for _, pdf in df.groupby(others):
-                    selection = query.apply_selection(pdf).reset_index()
+                    selection = query.apply_selection(pdf, label).reset_index()
                     selections.append(selection)
 
                 selections = [s for s in selections if len(s)]
@@ -222,7 +238,7 @@ class PandasMultiQuery(PandasBaseQuery):
                 else:
                     df = pd.concat(selections)
             else:
-                df = query.apply_selection(df)
+                df = query.apply_selection(df, label)
         return df
 
 

@@ -133,14 +133,7 @@ class JsonSimpleQuery(JsonBaseQuery):
 
 
 class JsonIntervalQuery(JsonBaseQuery):
-    def filter(self, record: dict):
-        if self.label is None:
-            return record
-
-        if self.field not in record:
-            raise KeyError(self.field)
-
-        interval = self.label
+    def as_interval(self, interval):
         if isinstance(interval, tuple):
             left, right = interval
         elif isinstance(interval, dict):
@@ -153,13 +146,47 @@ class JsonIntervalQuery(JsonBaseQuery):
             left = right = interval
 
         left, right = to_json(left), to_json(right)
+        return left, right
+    
+    def _filter(self, record: dict, label):
+        left, right = self.as_interval(label)        
 
         return (record[self.field]["left"] < right) and (
             record[self.field]["right"] > left
         )
+    
+    def filter(self, record: dict):
+        if self.label is None:
+            return record
+        
+        if isinstance(self.label, list):
+            return any([self._filter(record, lbl) for lbl in self.label])
+        
+        if self.field not in record:
+            raise KeyError(self.field)
+
+        return self._filter(record, self.label)
 
 
 class JsonInterpolationQuery(JsonBaseQuery):
+
+    def _apply_selection(self, records, label, limit=1):
+        field_values = np.array([record[self.field] for record in records])
+        before_mask = field_values <= label
+        before_values = field_values[before_mask]
+
+        after_mask = field_values > label
+        after_values = field_values[after_mask]
+
+        before_idxs = np.argsort(np.abs(before_values) - label)[:limit]
+        before_records = [records[i] for i in np.flatnonzero(before_mask)]
+        before_values = [before_records[i] for i in before_idxs]
+
+        after_idxs = np.argsort(np.abs(after_values) - label)[:limit]
+        after_records = [records[i] for i in np.flatnonzero(after_mask)]
+        after_values = [after_records[i] for i in after_idxs]
+        return before_values + after_values
+    
     def apply_selection(self, records, limit=1):
         if self.label is None:
             return records
@@ -167,21 +194,13 @@ class JsonInterpolationQuery(JsonBaseQuery):
         if not all(self.field in record for record in records):
             raise KeyError(self.field)
 
-        field_values = np.array([record[self.field] for record in records])
-        before_mask = field_values <= self.label
-        before_values = field_values[before_mask]
-
-        after_mask = field_values > self.label
-        after_values = field_values[after_mask]
-
-        before_idxs = np.argsort(np.abs(before_values) - self.label)[:limit]
-        before_records = [records[i] for i in np.flatnonzero(before_mask)]
-        before_values = [before_records[i] for i in before_idxs]
-
-        after_idxs = np.argsort(np.abs(after_values) - self.label)[:limit]
-        after_records = [records[i] for i in np.flatnonzero(after_mask)]
-        after_values = [after_records[i] for i in after_idxs]
-        return before_values + after_values
+        if isinstance(self.label, list):
+            selections = []
+            for lbl in self.label:
+                selections.extend(self._apply_selection(records, lbl, limit=limit))
+            return selections
+        
+        return self._apply_selection(records, self.label, limit=limit)
 
 
 class JsonMultiQuery(JsonBaseQuery):

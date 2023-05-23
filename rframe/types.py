@@ -54,9 +54,13 @@ class Interval(BaseModel):
 
     @classmethod
     def validate_field(cls, v, field):
+
         if isinstance(v, cls):
             return v
 
+        if isinstance(v, list) and len(v)==1:
+            v = v[0]
+        
         if isinstance(v, tuple):
             left, right = v
         elif isinstance(v, Mapping):
@@ -179,9 +183,11 @@ class TimeInterval(Interval):
 
     @classmethod
     def _validate_boundary(cls, value):
+        if isinstance(value, str):
+            value = pd.to_datetime(value)
+
         if isinstance(value, pd.Timestamp):
             value = value.to_pydatetime()
-
         if value.tzinfo is not None:
             if value.tzinfo.utcoffset(value) is not None:
                 value = value.astimezone(pytz.utc)

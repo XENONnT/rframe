@@ -200,9 +200,9 @@ class BaseSchema(BaseModel):
         for label_vals in product(*labels):
             label_dict = dict(label_vals)
             valid_dict, names, error = validate_model(cls, label_dict)
-            if len(valid_dict) < len(label_dict):
-                raise error
-            validated.append(valid_dict)
+            label_dict.update(valid_dict)
+            validated.append(label_dict)
+
         labels = defaultdict(list)
         for d in validated:
             for k, v in d.items():
