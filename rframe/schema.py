@@ -199,13 +199,18 @@ class BaseSchema(BaseModel):
         validated = []
         for label_vals in product(*labels):
             label_dict = dict(label_vals)
-            valid_dict, names, error = validate_model(cls, label_dict)
-            label_dict.update(valid_dict)
+            for validator in cls.__pre_root_validators__:
+                try:
+                    label_dict = validator(cls, label_dict)
+                except:
+                    pass
             validated.append(label_dict)
 
         labels = defaultdict(list)
         for d in validated:
             for k, v in d.items():
+                if v in labels[k]:
+                    continue
                 labels[k].append(v)
         labels = {k: v[0] if len(v) == 1 else v for k, v in labels.items()}
         return labels
@@ -216,10 +221,11 @@ class BaseSchema(BaseModel):
 
         returns extracted labels and remaining kwargs
         """
-        labels = {k:v for k,v in kwargs.items() if k in cls.__fields__ and v is not None}
-        labels = cls._validate_labels(**labels)
-
-        labels = {k:v for k,v in labels.items() if k in kwargs}
+        
+        labels = cls._validate_labels(**kwargs)
+        labels = {k:v for k,v in labels.items() if k in cls.__fields__ and v is not None}
+        
+        # labels = {k:v for k,v in labels.items() if k in kwargs}
         kwargs = {k:v for k,v in kwargs.items() if k not in labels}
 
         return labels, kwargs
