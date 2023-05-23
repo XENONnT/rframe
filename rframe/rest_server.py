@@ -210,7 +210,7 @@ class SchemaRouter(APIRouter):
             min: bool = False,
             max: bool = False,
             count: bool = False,
-            kwargs: dict = {},
+            **kwargs
         ) -> dict:
             query = self.schema.compile_query(self.datasource, **kwargs)
             if fields is None:
@@ -223,53 +223,52 @@ class SchemaRouter(APIRouter):
             if count:
                 results["count"] = query.count()
             return results
-        return summary_func_impl
         # fastapi uses the function signature to generate the openapi docs
         # and request body validation. We need to edit the signature to include
         # the query signature from the schema instead of the generic **kwargs.
-        # summary_func_name = f"{self.schema.__name__}_summary"
-        # query_signature = self.schema.get_query_signature(default=None)
+        summary_func_name = f"{self.schema.__name__}_summary"
+        query_signature = self.schema.get_query_signature(default=None)
 
-        # # Also add the extra query parameters for summary customization.
-        # # set all defaults to False, since queries may be expensive.
-        # extra = [
-        #     inspect.Parameter(
-        #         "fields",
-        #         inspect.Parameter.POSITIONAL_OR_KEYWORD,
-        #         default=Query(None),
-        #         annotation=List[str],
-        #     ),
-        #     inspect.Parameter(
-        #         "unique",
-        #         inspect.Parameter.POSITIONAL_OR_KEYWORD,
-        #         default=Query(False),
-        #         annotation=bool,
-        #     ),
-        #     inspect.Parameter(
-        #         "min",
-        #         inspect.Parameter.POSITIONAL_OR_KEYWORD,
-        #         default=Query(False),
-        #         annotation=bool,
-        #     ),
-        #     inspect.Parameter(
-        #         "max",
-        #         inspect.Parameter.POSITIONAL_OR_KEYWORD,
-        #         default=Query(False),
-        #         annotation=bool,
-        #     ),
-        #     inspect.Parameter(
-        #         "count",
-        #         inspect.Parameter.POSITIONAL_OR_KEYWORD,
-        #         default=Query(False),
-        #         annotation=bool,
-        #     ),
-        # ]
+        # Also add the extra query parameters for summary customization.
+        # set all defaults to False, since queries may be expensive.
+        extra = [
+            inspect.Parameter(
+                "fields",
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                default=Query(None),
+                annotation=List[str],
+            ),
+            inspect.Parameter(
+                "unique",
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                default=Query(False),
+                annotation=bool,
+            ),
+            inspect.Parameter(
+                "min",
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                default=Query(False),
+                annotation=bool,
+            ),
+            inspect.Parameter(
+                "max",
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                default=Query(False),
+                annotation=bool,
+            ),
+            inspect.Parameter(
+                "count",
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                default=Query(False),
+                annotation=bool,
+            ),
+        ]
 
-        # query_signature = makefun.add_signature_parameters(query_signature, extra)
-        # summary_func = makefun.create_function(
-        #     query_signature, summary_func_impl, func_name=summary_func_name
-        # )
-        # return summary_func
+        query_signature = makefun.add_signature_parameters(query_signature, extra)
+        summary_func = makefun.create_function(
+            query_signature, summary_func_impl, func_name=summary_func_name
+        )
+        return summary_func
 
     def _query_route(self, *args, **kwargs) -> Callable[..., Any]:
         # This is the actual implementation that will be called when
