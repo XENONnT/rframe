@@ -210,7 +210,7 @@ class SchemaRouter(APIRouter):
             min: bool = False,
             max: bool = False,
             count: bool = False,
-            **kwargs,
+            kwargs: dict = {},
         ) -> dict:
             query = self.schema.compile_query(self.datasource, **kwargs)
             if fields is None:
@@ -223,184 +223,233 @@ class SchemaRouter(APIRouter):
             if count:
                 results["count"] = query.count()
             return results
-
+        return summary_func_impl
         # fastapi uses the function signature to generate the openapi docs
         # and request body validation. We need to edit the signature to include
         # the query signature from the schema instead of the generic **kwargs.
-        summary_func_name = f"{self.schema.__name__}_summary"
-        query_signature = self.schema.get_query_signature(default=None)
+        # summary_func_name = f"{self.schema.__name__}_summary"
+        # query_signature = self.schema.get_query_signature(default=None)
 
-        # Also add the extra query parameters for summary customization.
-        # set all defaults to False, since queries may be expensive.
-        extra = [
-            inspect.Parameter(
-                "fields",
-                inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                default=Query(None),
-                annotation=List[str],
-            ),
-            inspect.Parameter(
-                "unique",
-                inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                default=Query(False),
-                annotation=bool,
-            ),
-            inspect.Parameter(
-                "min",
-                inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                default=Query(False),
-                annotation=bool,
-            ),
-            inspect.Parameter(
-                "max",
-                inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                default=Query(False),
-                annotation=bool,
-            ),
-            inspect.Parameter(
-                "count",
-                inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                default=Query(False),
-                annotation=bool,
-            ),
-        ]
+        # # Also add the extra query parameters for summary customization.
+        # # set all defaults to False, since queries may be expensive.
+        # extra = [
+        #     inspect.Parameter(
+        #         "fields",
+        #         inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        #         default=Query(None),
+        #         annotation=List[str],
+        #     ),
+        #     inspect.Parameter(
+        #         "unique",
+        #         inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        #         default=Query(False),
+        #         annotation=bool,
+        #     ),
+        #     inspect.Parameter(
+        #         "min",
+        #         inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        #         default=Query(False),
+        #         annotation=bool,
+        #     ),
+        #     inspect.Parameter(
+        #         "max",
+        #         inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        #         default=Query(False),
+        #         annotation=bool,
+        #     ),
+        #     inspect.Parameter(
+        #         "count",
+        #         inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        #         default=Query(False),
+        #         annotation=bool,
+        #     ),
+        # ]
 
-        query_signature = makefun.add_signature_parameters(query_signature, extra)
-        summary_func = makefun.create_function(
-            query_signature, summary_func_impl, func_name=summary_func_name
-        )
-        return summary_func
+        # query_signature = makefun.add_signature_parameters(query_signature, extra)
+        # summary_func = makefun.create_function(
+        #     query_signature, summary_func_impl, func_name=summary_func_name
+        # )
+        # return summary_func
 
     def _query_route(self, *args, **kwargs) -> Callable[..., Any]:
         # This is the actual implementation that will be called when
         # a request is made to the route.
-        def query_func_impl(
-            limit: int = None, skip: int = None, sort=None, **kwargs
-        ) -> List[BaseSchema]:
+        def query_func(limit: int = None, skip: int = None, sort=None, kwargs: dict = {}):
             kwargs = {k: from_json(v) for k, v in kwargs.items() if v is not None}
             query = self.schema.compile_query(self.datasource, **kwargs)
             return [
                 self.schema(**d)
                 for d in query.execute(limit=limit, skip=skip, sort=sort)
             ]
-
-        # fastapi uses the function signature to generate the openapi docs
-        # and request body validation. We need to edit the signature to include
-        # the query signature from the schema instead of the generic **kwargs.
-        query_func_name = f"{self.schema.__name__}_query"
-        query_signature = self.schema.get_query_signature(default=None)
-
-        # Also add the extra query parameters for pagination.
-        extra = [
-            inspect.Parameter(
-                "limit",
-                inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                default=Query(None),
-                annotation=int,
-            ),
-            inspect.Parameter(
-                "skip",
-                inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                default=Query(None),
-                annotation=int,
-            ),
-            inspect.Parameter(
-                "sort",
-                inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                default=Query(None),
-                annotation=list,
-            ),
-        ]
-        query_signature = makefun.add_signature_parameters(query_signature, extra)
-
-        # Create the function with the correct signature.
-        query_func = makefun.create_function(
-            query_signature, query_func_impl, func_name=query_func_name
-        )
         return query_func
+    
+        # def query_func_impl(
+        #     limit: int = None, skip: int = None, sort=None, **kwargs
+        # ) -> List[BaseSchema]:
+        #     kwargs = {k: from_json(v) for k, v in kwargs.items() if v is not None}
+        #     query = self.schema.compile_query(self.datasource, **kwargs)
+        #     return [
+        #         self.schema(**d)
+        #         for d in query.execute(limit=limit, skip=skip, sort=sort)
+        #     ]
+
+        # # fastapi uses the function signature to generate the openapi docs
+        # # and request body validation. We need to edit the signature to include
+        # # the query signature from the schema instead of the generic **kwargs.
+        # query_func_name = f"{self.schema.__name__}_query"
+        # query_signature = self.schema.get_query_signature(default=None)
+
+        # # Also add the extra query parameters for pagination.
+        # extra = [
+        #     inspect.Parameter(
+        #         "limit",
+        #         inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        #         default=Query(None),
+        #         annotation=int,
+        #     ),
+        #     inspect.Parameter(
+        #         "skip",
+        #         inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        #         default=Query(None),
+        #         annotation=int,
+        #     ),
+        #     inspect.Parameter(
+        #         "sort",
+        #         inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        #         default=Query(None),
+        #         annotation=list,
+        #     ),
+        # ]
+        # query_signature = makefun.add_signature_parameters(query_signature, extra)
+
+        # # Create the function with the correct signature.
+        # query_func = makefun.create_function(
+        #     query_signature, query_func_impl, func_name=query_func_name
+        # )
+        # return query_func
 
     def _insert_one_route(self, *args: Any, **kwargs: Any) -> Callable[..., Any]:
-        def insert(doc: BaseSchema) -> BaseSchema:
+        def insert_func(doc: dict) -> dict:
+            doc = self.schema(**doc)
             try:
                 doc.save(self.datasource)
-                return doc
+                return doc.dict()
             except Exception as e:
                 raise HTTPException(status_code=400, detail=str(e))
+        return insert_func
+    
+        # def insert(doc: BaseSchema) -> BaseSchema:
+        #     try:
+        #         doc.save(self.datasource)
+        #         return doc
+        #     except Exception as e:
+        #         raise HTTPException(status_code=400, detail=str(e))
 
-        parameter = inspect.Parameter(
-            "doc",
-            inspect.Parameter.POSITIONAL_OR_KEYWORD,
-            annotation=self.schema,
-        )
-        signature = inspect.Signature(
-            parameters=[parameter], return_annotation=self.schema
-        )
-        return makefun.create_function(
-            signature, insert, func_name=f"{self.schema.__name__}_insert_one"
-        )
+        # parameter = inspect.Parameter(
+        #     "doc",
+        #     inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        #     annotation=self.schema,
+        # )
+        # signature = inspect.Signature(
+        #     parameters=[parameter], return_annotation=self.schema
+        # )
+        # return makefun.create_function(
+        #     signature, insert, func_name=f"{self.schema.__name__}_insert_one"
+        # )
 
     def _update_one_route(self, *args: Any, **kwargs: Any) -> Callable[..., Any]:
-        def update(doc: BaseSchema) -> BaseSchema:
+        def update_func(doc: dict) -> dict:
+            doc = self.schema(**doc)
             try:
                 doc.save(self.datasource)
-                return doc
+                return doc.dict()
             except Exception as e:
                 raise HTTPException(status_code=400, detail=str(e))
+        return update_func
+    
+        # def update(doc: BaseSchema) -> BaseSchema:
+        #     try:
+        #         doc.save(self.datasource)
+        #         return doc
+        #     except Exception as e:
+        #         raise HTTPException(status_code=400, detail=str(e))
 
-        parameter = inspect.Parameter(
-            "doc",
-            inspect.Parameter.POSITIONAL_OR_KEYWORD,
-            annotation=self.schema,
-        )
-        signature = inspect.Signature(
-            parameters=[parameter], return_annotation=self.schema
-        )
-        return makefun.create_function(
-            signature, update, func_name=f"{self.schema.__name__}_update_one"
-        )
+        # parameter = inspect.Parameter(
+        #     "doc",
+        #     inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        #     annotation=self.schema,
+        # )
+        # signature = inspect.Signature(
+        #     parameters=[parameter], return_annotation=self.schema
+        # )
+        # return makefun.create_function(
+        #     signature, update, func_name=f"{self.schema.__name__}_update_one"
+        # )
 
     def _insert_many_route(self, *args: Any, **kwargs: Any) -> Callable[..., Any]:
-        def insert_many(docs: List[BaseSchema]) -> BaseSchema:
+        def insert_many_func(docs: List[dict]) -> List[dict]:
             results = []
-            for doc in docs:
+            for d in docs:
+                doc = self.schema(**d)
                 try:
                     doc.save(self.datasource)
                     results.append(doc)
                 except Exception as e:
-                    results.append(str(e))
+                    res = {"Error": str(e)}
+                    results.append(res)
             return results
+        return insert_many_func
+    
+        # def insert_many(docs: List[BaseSchema]) -> BaseSchema:
+        #     results = []
+        #     for doc in docs:
+        #         try:
+        #             doc.save(self.datasource)
+        #             results.append(doc)
+        #         except Exception as e:
+        #             results.append(str(e))
+        #     return results
 
-        parameter = inspect.Parameter(
-            "docs",
-            inspect.Parameter.POSITIONAL_OR_KEYWORD,
-            annotation=List[self.schema],
-        )
-        signature = inspect.Signature(
-            parameters=[parameter], return_annotation=List[Union[self.schema, str]]
-        )
-        return makefun.create_function(
-            signature, insert_many, func_name=f"{self.schema.__name__}_insert_many"
-        )
+        # parameter = inspect.Parameter(
+        #     "docs",
+        #     inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        #     annotation=List[self.schema],
+        # )
+        # signature = inspect.Signature(
+        #     parameters=[parameter], return_annotation=List[Union[self.schema, str]]
+        # )
+        # return makefun.create_function(
+        #     signature, insert_many, func_name=f"{self.schema.__name__}_insert_many"
+        # )
 
     def _delete_route(self, *args: Any, **kwargs: Any) -> Callable[..., Any]:
-        def delete(doc: BaseSchema) -> BaseSchema:
+        def delete_func(doc: dict) -> dict:
+            doc = self.schema(**doc)
             try:
                 doc.delete(self.datasource)
                 return doc
             except Exception as e:
                 raise HTTPException(status_code=400, detail=str(e))
+        return delete_func
+    
+        # def delete(doc: BaseSchema) -> BaseSchema:
+        #     try:
+        #         doc.delete(self.datasource)
+        #         return doc
+        #     except Exception as e:
+        #         raise HTTPException(status_code=400, detail=str(e))
 
-        parameter = inspect.Parameter(
-            "doc",
-            inspect.Parameter.POSITIONAL_OR_KEYWORD,
-            annotation=self.schema,
-        )
-        signature = inspect.Signature(
-            parameters=[parameter], return_annotation=self.schema
-        )
-        return makefun.create_function(
-            signature, delete, func_name=f"{self.schema.__name__}_delete"
-        )
+        # parameter = inspect.Parameter(
+        #     "doc",
+        #     inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        #     annotation=self.schema,
+        # )
+        # signature = inspect.Signature(
+        #     parameters=[parameter], return_annotation=self.schema
+        # )
+        # return makefun.create_function(
+        #     signature, delete, func_name=f"{self.schema.__name__}_delete"
+        # )
 
     def _schema_route(self, *args: Any, **kwargs: Any) -> Callable[..., Any]:
         async def get_schema():
