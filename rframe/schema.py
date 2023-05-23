@@ -199,13 +199,18 @@ class BaseSchema(BaseModel):
         validated = []
         for label_vals in product(*labels):
             label_dict = dict(label_vals)
-            valid_dict, names, error = validate_model(cls, label_dict)
-            label_dict.update(valid_dict)
+            for validator in cls.__pre_root_validators__:
+                try:
+                    label_dict = validator(cls, label_dict)
+                except:
+                    pass
             validated.append(label_dict)
 
         labels = defaultdict(list)
         for d in validated:
             for k, v in d.items():
+                if v in labels[k]:
+                    continue
                 labels[k].append(v)
         labels = {k: v[0] if len(v) == 1 else v for k, v in labels.items()}
         return labels
