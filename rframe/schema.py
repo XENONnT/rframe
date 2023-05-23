@@ -216,10 +216,11 @@ class BaseSchema(BaseModel):
 
         returns extracted labels and remaining kwargs
         """
-        labels = {k:v for k,v in kwargs.items() if k in cls.__fields__ and v is not None}
-        labels = cls._validate_labels(**labels)
-
-        labels = {k:v for k,v in labels.items() if k in kwargs}
+        
+        labels = cls._validate_labels(**kwargs)
+        labels = {k:v for k,v in labels.items() if k in cls.__fields__ and v is not None}
+        
+        # labels = {k:v for k,v in labels.items() if k in kwargs}
         kwargs = {k:v for k,v in kwargs.items() if k not in labels}
 
         return labels, kwargs
