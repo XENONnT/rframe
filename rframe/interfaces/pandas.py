@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Union
 
 import numpy as np
 import pandas as pd
+import pytz
 
 from ..indexes import Index, InterpolatingIndex, IntervalIndex, MultiIndex
 from ..utils import singledispatchmethod
@@ -176,7 +177,7 @@ class PandasInterpolationQuery(PandasBaseQuery):
         
         if isinstance(label, list):
             return pd.concat([self.apply_selection(df, lbl) for lbl in label])
-        
+
         if self.column in df.index.names:
             df = df.reset_index()
 
@@ -186,6 +187,13 @@ class PandasInterpolationQuery(PandasBaseQuery):
         rows = []
         # select all values before requested values
         idx_column = df[self.column]
+
+        if isinstance(label, (datetime, pd.Timestamp)):
+            label = pd.to_datetime(label, utc=(idx_column.dt.tz is pytz.UTC))
+            label = label.tz_convert(None)
+            if idx_column.dt.tz is not None:
+                idx_column = idx_column.dt.tz_convert(pytz.UTC)
+                idx_column = idx_column.dt.tz_convert(None)
         before = df[idx_column <= label]
         if len(before):
             # if there are values after `value`, we find the closest one
@@ -225,7 +233,8 @@ class PandasMultiQuery(PandasBaseQuery):
                 if not others:
                     df = query.apply_selection(df, label)
                     continue
-
+                if len(others) == 1:
+                    others = others[0]
                 for _, pdf in df.groupby(others):
                     selection = query.apply_selection(pdf, label).reset_index()
                     selections.append(selection)
