@@ -190,9 +190,11 @@ class PandasInterpolationQuery(PandasBaseQuery):
 
         if isinstance(label, (datetime, pd.Timestamp)):
             label = pd.to_datetime(label, utc=(idx_column.dt.tz is pytz.UTC))
-
+            label = label.tz_convert(None)
+            if idx_column.dt.tz is not None:
+                idx_column = idx_column.dt.tz_convert(pytz.UTC)
+                idx_column = idx_column.dt.tz_convert(None)
         before = df[idx_column <= label]
-        print("Before: ", len(before))
         if len(before):
             # if there are values after `value`, we find the closest one
             before = before.sort_values(self.column, ascending=False).head(limit)
@@ -200,7 +202,6 @@ class PandasInterpolationQuery(PandasBaseQuery):
 
         # select all values after requested values
         after = df[idx_column > label]
-        print("After: ", len(after))
         if len(after):
             # same as before
             after = after.sort_values(self.column, ascending=True).head(limit)
@@ -232,7 +233,8 @@ class PandasMultiQuery(PandasBaseQuery):
                 if not others:
                     df = query.apply_selection(df, label)
                     continue
-
+                if len(others) == 1:
+                    others = others[0]
                 for _, pdf in df.groupby(others):
                     selection = query.apply_selection(pdf, label).reset_index()
                     selections.append(selection)
