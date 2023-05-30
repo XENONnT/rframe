@@ -454,17 +454,41 @@ class MongoInterface(DatasourceInterface):
         if label is None or label == slice(None):
             labels = {index.name: label}
             return MongoAggregation(index, labels, self.source, [])
+        
         if isinstance(label, Interval):
             labels = {index.name: label}
-            pipeline = mongo_overlap_query(index.name, (label.left, label.right))
+            query = {
+                
+            }
+            pipeline = [
+                        {
+                            "$match": {
+                                index.name: {
+                                    "$gte": to_mongo(label.left),
+                                    "$lt": to_mongo(label.right),
+                                    },
+                            }
+                        }
+                         ]
+                        
             return MongoAggregation(index, labels, self.source, pipeline)
+        
         if isinstance(label, slice):
             start = label.start
             stop = label.stop
             step = label.step
             if step is None:
                 labels = {index.name: label}
-                pipeline = mongo_overlap_query(index.name, (start, stop))
+                pipeline = [
+                        {
+                            "$match": {
+                                index.name: {
+                                    "$gte": to_mongo(label.start),
+                                    "$lt": to_mongo(label.stop),
+                                    },
+                            }
+                        }
+                         ]
                 return MongoAggregation(index, labels, self.source, pipeline)
             else:
                 # create the range of values manually so it works with non-numeric values
@@ -743,6 +767,9 @@ def mongo_closest_query(name, value, groupby=None):
 
 
 def merge_pipelines(pipelines):
+    if len(pipelines) == 1:
+        return pipelines[list(pipelines.keys())[0]]
+    
     pipeline = [
         {
             # support multiple independent aggregations

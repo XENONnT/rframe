@@ -61,6 +61,12 @@ class InterpolatingIndex(BaseIndex):
 
         if isinstance(label, list):
             return [d for val in label for d in self.reduce(docs, val)]
+        
+        if isinstance(label, slice) and label.step is None:
+            label = Interval[label.start, label.stop]
+
+        if isinstance(label, Interval):
+            return [d for d in docs if label.contains(d[self.name])]
 
         label = self.validate_label(label)
 

@@ -120,6 +120,9 @@ class Interval(BaseModel):
     def overlaps(self, other):
         return self.left < other.right and self.right > other.left
 
+    def contains(self, label):
+        return self.left <= label < self.right
+    
     def __lt__(self, other: "Interval"):
         if not isinstance(other, self.__class__):
             raise NotImplementedError
