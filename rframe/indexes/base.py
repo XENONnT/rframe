@@ -6,6 +6,7 @@ import pandas as pd
 import pytz
 from pydantic import BaseModel, ValidationError
 from pydantic.fields import FieldInfo, Undefined
+from rframe.types import Interval
 
 from rframe.utils import singledispatchmethod
 
@@ -52,7 +53,15 @@ class BaseIndex(FieldInfo):
     def validate_label(self, label):
         if isinstance(label, dict) and self.name in label:
             label = label[self.name]
-
+        
+        if isinstance(label, dict) and self.field.type_ is not dict:
+            return {k: self._validate_label(v) for k, v in label.items()}
+        
+        if isinstance(label, Interval) and not issubclass(self.field.type_, Interval):
+            label.left = self._validate_label(label.left)
+            label.right = self._validate_label(label.right)
+            return label
+        
         if isinstance(label, slice):
             start = self._validate_label(label.start)
             stop = self._validate_label(label.stop)
