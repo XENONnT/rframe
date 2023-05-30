@@ -58,9 +58,9 @@ class BaseIndex(FieldInfo):
             return {k: self._validate_label(v) for k, v in label.items()}
         
         if isinstance(label, Interval) and not issubclass(self.field.type_, Interval):
-            label.left = self._validate_label(label.left)
-            label.right = self._validate_label(label.right)
-            return label
+            left = self._validate_label(label.left)
+            right = self._validate_label(label.right)
+            return label.__class__(left=left, right=right)
         
         if isinstance(label, slice):
             start = self._validate_label(label.start)
