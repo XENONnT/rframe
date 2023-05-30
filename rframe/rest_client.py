@@ -103,7 +103,7 @@ class RestClient(BaseRestClient):
 
     def update(self, index_labels: dict, doc: "BaseSchema"):
         data = jsonable(doc)
-        r = self.client.popust(
+        r = self.client.post(
             self.update_url, headers=self.headers, json=data, auth=self.auth
         )
         with logger.catch():
