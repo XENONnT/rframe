@@ -454,7 +454,10 @@ class MongoInterface(DatasourceInterface):
         if label is None or label == slice(None):
             labels = {index.name: label}
             return MongoAggregation(index, labels, self.source, [])
-        
+        if isinstance(label, Interval):
+            labels = {index.name: label}
+            pipeline = mongo_overlap_query(index.name, (label.left, label.right))
+            return MongoAggregation(index, labels, self.source, pipeline)
         if isinstance(label, slice):
             start = label.start
             stop = label.stop
