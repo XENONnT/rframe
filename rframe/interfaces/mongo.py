@@ -463,10 +463,10 @@ class MongoInterface(DatasourceInterface):
             pipeline = [
                         {
                             "$match": {
-                                "$and": [
-                                    {index.name: {"$gte": to_mongo(label.left)}},
-                                    {index.name: {"$lt": to_mongo(label.right)}},
-                                    ]
+                                index.name: {
+                                    "$gte": to_mongo(label.left),
+                                    "$lt": to_mongo(label.right),
+                                    },
                             }
                         }
                          ]
@@ -479,17 +479,16 @@ class MongoInterface(DatasourceInterface):
             step = label.step
             if step is None:
                 labels = {index.name: label}
-                query = {
-                        "$and": [
-                            {index.name: {"$gte": to_mongo(label.left)}},
-                            {index.name: {"$lt": to_mongo(label.right)}},
-                                ]
-                    }
                 pipeline = [
-                                {
-                                    "$match": query,
-                                }
-                                ]
+                        {
+                            "$match": {
+                                index.name: {
+                                    "$gte": to_mongo(label.start),
+                                    "$lt": to_mongo(label.stop),
+                                    },
+                            }
+                        }
+                         ]
                 return MongoAggregation(index, labels, self.source, pipeline)
             else:
                 # create the range of values manually so it works with non-numeric values
