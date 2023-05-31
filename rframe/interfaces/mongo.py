@@ -30,6 +30,7 @@ query_precendence = {
 
 
 class MultiMongoAggregation(BaseDataQuery):
+    allow_disk_use = False
     aggregations: list
 
     def __init__(self, collection: Collection, aggregations: list):
@@ -40,21 +41,24 @@ class MultiMongoAggregation(BaseDataQuery):
         self.collection = collection
         self.aggregations = aggregations
 
-    def execute(self, limit=None, skip=None, sort=None):
+    def execute(self, limit=None, skip=None, sort=None, allow_disk_use=None):
         logger.debug("Executing multi mongo aggregation.")
-        results = list(self.iter(limit=limit, skip=skip, sort=sort))
+        results = list(self.iter(limit=limit, skip=skip, sort=sort, allow_disk_use=allow_disk_use))
         skip = 0 if skip is None else skip
         if limit is not None:
             return results[skip : limit + skip]
         return results
 
-    def iter(self, limit=None, skip=None, sort=None):
+    def iter(self, limit=None, skip=None, sort=None, allow_disk_use=None):
         seen = set()
+        if allow_disk_use is None:
+            allow_disk_use = self.allow_disk_use
 
         with ThreadPoolExecutor(max_workers=5) as executor:
             # Start the load operations and mark each future with its URL
             futures = {
-                executor.submit(agg.iter, limit=limit, skip=skip, sort=sort): agg
+                executor.submit(agg.iter, limit=limit, skip=skip, 
+                                sort=sort, allow_disk_use=allow_disk_use): agg
                 for agg in self.aggregations
             }
             for future in as_completed(futures):
@@ -134,6 +138,7 @@ class MultiMongoAggregation(BaseDataQuery):
 
 class MongoAggregation(BaseDataQuery):
     pipeline: list
+    allow_disk_use = False
 
     def __init__(self, index, labels, collection: Collection, pipeline: list):
         if not isinstance(collection, Collection):
@@ -156,11 +161,14 @@ class MongoAggregation(BaseDataQuery):
             n *= self.index.DOCS_PER_LABEL
         return n
 
-    def execute(self, limit: int = None, skip: int = None, sort=None):
-        return list(self.iter(limit=limit, skip=skip, sort=sort))
+    def execute(self, limit: int = None, skip: int = None, sort=None, allow_disk_use=None):
+        return list(self.iter(limit=limit, skip=skip, sort=sort, allow_disk_use=allow_disk_use))
 
-    def iter(self, limit=None, skip=None, sort=None):
+    def iter(self, limit=None, skip=None, sort=None, allow_disk_use=None):
         pipeline = list(self.pipeline)
+        
+        if allow_disk_use is None:
+            allow_disk_use = self.allow_disk_use
 
         if sort is None:
             sort = self.index.names
@@ -187,11 +195,11 @@ class MongoAggregation(BaseDataQuery):
 
         logger.debug(f"Executing mongo aggregation: {pipeline}.")
 
-        # docs = list(self.collection.aggregate(pipeline, allowDiskUse=True))
+        # docs = list(self.collection.aggregate(pipeline, allowDiskUse=self.allow_disk_use))
         collected = 0
         limit = limit if limit is not None else float("inf")
         docs = []
-        for doc in self.collection.aggregate(pipeline, allowDiskUse=True):
+        for doc in self.collection.aggregate(pipeline, allowDiskUse=allow_disk_use):
             docs.append(doc)
             if len(docs) >= self.docs_per_label:
                 docs = self.index.reduce(docs, self.labels)
@@ -227,7 +235,7 @@ class MongoAggregation(BaseDataQuery):
 
             results[field] = [
                 doc["first"]
-                for doc in self.collection.aggregate(pipeline, allowDiskUse=True)
+                for doc in self.collection.aggregate(pipeline, allowDiskUse=self.allow_disk_use)
             ]
 
         results = from_mongo(results)
@@ -236,9 +244,13 @@ class MongoAggregation(BaseDataQuery):
             return results[fields[0]]
         return results
 
-    def max(self, fields: Union[str, List[str]]):
+    def max(self, fields: Union[str, List[str]], allow_disk_use=None):
         if isinstance(fields, str):
             fields = [fields]
+
+        if allow_disk_use is None:
+            allow_disk_use = self.allow_disk_use
+
         results = {}
         for field in fields:
             pipeline = list(self.pipeline)
@@ -248,7 +260,7 @@ class MongoAggregation(BaseDataQuery):
             try:
 
                 results[field] = next(
-                    self.collection.aggregate(pipeline, allowDiskUse=True)
+                    self.collection.aggregate(pipeline, allowDiskUse=allow_disk_use)
                 )[field]
             except (StopIteration, KeyError):
                 results[field] = None
@@ -259,9 +271,11 @@ class MongoAggregation(BaseDataQuery):
             return results[fields[0]]
         return results
 
-    def min(self, fields: Union[str, List[str]]):
+    def min(self, fields: Union[str, List[str]], allow_disk_use=None):
         if isinstance(fields, str):
             fields = [fields]
+        if allow_disk_use is None:
+            allow_disk_use = self.allow_disk_use
         results = {}
         for field in fields:
             pipeline = list(self.pipeline)
@@ -270,7 +284,7 @@ class MongoAggregation(BaseDataQuery):
             pipeline.append({"$project": {"_id": 0}})
             try:
                 results[field] = next(
-                    self.collection.aggregate(pipeline, allowDiskUse=True)
+                    self.collection.aggregate(pipeline, allowDiskUse=allow_disk_use)
                 )[field]
             except (StopIteration, KeyError):
                 results[field] = None
@@ -281,11 +295,13 @@ class MongoAggregation(BaseDataQuery):
             return results[fields[0]]
         return results
 
-    def count(self):
+    def count(self, allow_disk_use=None):
         pipeline = list(self.pipeline)
         pipeline.append({"$count": "count"})
+        if allow_disk_use is None:
+            allow_disk_use = self.allow_disk_use
         try:
-            result = next(self.collection.aggregate(pipeline, allowDiskUse=True))
+            result = next(self.collection.aggregate(pipeline, allowDiskUse=allow_disk_use))
         except StopIteration:
             return 0
         return result.get("count", 0)
