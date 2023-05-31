@@ -265,9 +265,14 @@ class BaseSchema(BaseModel):
         """
 
         query = cls.compile_query(datasource=datasource, **labels)
+        returned = set()
         for doc in query.iter(limit=limit, skip=skip, sort=sort):
             try:
-                cls.validate(doc)
+                doc = cls(**doc)
+                if doc.index_labels_tuple in returned:
+                    continue
+                returned.add(doc.index_labels_tuple)
+                doc = doc.dict()
             except ValidationError:
                 continue
             yield doc

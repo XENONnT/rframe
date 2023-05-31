@@ -1,5 +1,6 @@
 import inspect
 import makefun
+import toolz
 import pandas as pd
 
 from pydantic import ValidationError
@@ -61,9 +62,14 @@ class DataAccessor:
         """
         labels = {k: v for k, v in labels.items() if v is not None}
         query = self.schema.compile_query(datasource=self.storage, **labels)
+        returned = set()
         for doc in query.iter(limit=limit, skip=skip, sort=sort):
             try:
-                doc = self.schema(**doc).dict()
+                doc = self.schema(**doc)
+                if doc.index_labels_tuple in returned:
+                    continue
+                returned.add(doc.index_labels_tuple)
+                doc = doc.dict()
             except ValidationError:
                 continue
             yield doc
