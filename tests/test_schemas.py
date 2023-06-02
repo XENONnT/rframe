@@ -21,7 +21,8 @@ from rframe.dispatchers import are_equal
 int_indices = st.integers(min_value=1, max_value=1e8)
 float_indices = st.floats(min_value=0, max_value=1e4, allow_nan=False)
 float_values = st.floats(min_value=-1e8, max_value=1e8, allow_nan=False)
-
+text_strings = st.text(min_size=1, max_size=1000)
+small_text_strings = st.text(min_size=1, max_size=100)
 
 def round_datetime(dt):
     #
@@ -170,6 +171,7 @@ class SimpleMultiIndexSchema(BaseTestSchema):
     def field_strategies(cls) -> Dict[str, st.SearchStrategy]:
         fields = dict(
             index1=int_indices,
+            index2=small_text_strings,
             value1=float_values,
             value2=float_values,
         )

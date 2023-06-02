@@ -558,6 +558,8 @@ class MongoInterface(DatasourceInterface):
             intervals = [label]
 
         intervals = to_mongo(intervals)
+        
+        left_min, right_max = None, None
 
         queries = []
         for interval in intervals:
@@ -565,13 +567,34 @@ class MongoInterface(DatasourceInterface):
                 continue
             if isinstance(interval, tuple) and all([i is None for i in interval]):
                 continue
-
-            query = mongo_overlap_query(index, interval)
+                # handle different kinds of interval definitions
+            if isinstance(interval, tuple):
+                left, right = interval
+            elif isinstance(interval, dict):
+                left, right = interval["left"], interval["right"]
+            elif isinstance(interval, slice):
+                left, right = interval.start, interval.stop
+            elif hasattr(interval, "left") and hasattr(interval, "right"):
+                left, right = interval.left, interval.right
+            else:
+                left = right = interval
+            if left_min is None:
+                left_min = left
+            if right_max is None:
+                right_max = right
+            
+            query = mongo_overlap_query(index, left, right)
             if query:
                 queries.append(query)
+                right_max = max(right_max, right)
+                left_min = min(left_min, left)
 
-        if queries:
+        if len(queries) == 1:
+            pipeline = [ {"$match": queries[0]}]
+        elif queries:
+            global_query = mongo_overlap_query(index, left_min, right_max)
             pipeline = [
+                {"$match": global_query },
                 {
                     "$match": {
                         # support querying for multiple values
@@ -634,7 +657,7 @@ class MongoInterface(DatasourceInterface):
         self.ensure_index(index_names)
 
 
-def mongo_overlap_query(index, interval):
+def mongo_overlap_query(index, left, right):
     """Builds a single overlap query
     Intervals with one side equal to null are treated as extending to infinity in
     that direction.
@@ -652,18 +675,6 @@ def mongo_overlap_query(index, interval):
     closed = getattr(index, "closed", "right")
     gt_op = "$gte" if closed == "both" else "$gt"
     lt_op = "$lte" if closed == "both" else "$lt"
-
-    # handle different kinds of interval definitions
-    if isinstance(interval, tuple):
-        left, right = interval
-    elif isinstance(interval, dict):
-        left, right = interval["left"], interval["right"]
-    elif isinstance(interval, slice):
-        left, right = interval.start, interval.stop
-    elif hasattr(interval, "left") and hasattr(interval, "right"):
-        left, right = interval.left, interval.right
-    else:
-        left = right = interval
 
     # Some conditions may not apply if the query interval is None
     # on one or both sides
