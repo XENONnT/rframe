@@ -57,14 +57,14 @@ class TestTinyDB(unittest.TestCase):
         InterpolatingSchema.test(self, db, docs)
 
     @given(IntegerIntervalSchema.list_strategy())
-    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much])
     def test_integer_interval(self, docs: IntegerIntervalSchema):
         self.table.truncate()
         db = DataAccessor(IntegerIntervalSchema, self.table)
         IntegerIntervalSchema.test(self, db, docs)
 
     @given(TimeIntervalSchema.list_strategy())
-    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much])
     def test_time_interval(self, docs: TimeIntervalSchema):
         self.table.truncate()
         db = DataAccessor(TimeIntervalSchema, self.table)
