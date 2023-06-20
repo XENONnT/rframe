@@ -40,13 +40,13 @@ class TestPandas(unittest.TestCase):
         InterpolatingSchema.test(self, db, docs)
 
     @given(IntegerIntervalSchema.list_strategy())
-    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much])
     def test_integer_interval(self, docs: IntegerIntervalSchema):
         db = DataAccessor(IntegerIntervalSchema, docs[0].dframe().head(0))
         IntegerIntervalSchema.test(self, db, docs)
 
     @given(TimeIntervalSchema.list_strategy())
-    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much])
     def test_time_interval(self, docs: TimeIntervalSchema):
         db = DataAccessor(TimeIntervalSchema, docs[0].dframe().head(0))
         TimeIntervalSchema.test(self, db, docs)

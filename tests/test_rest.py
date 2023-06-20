@@ -79,7 +79,7 @@ class TestRest(unittest.TestCase):
         InterpolatingSchema.test(self, db, docs)
 
     @given(IntegerIntervalSchema.list_strategy())
-    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much])
     def test_integer_interval(self, docs: IntegerIntervalSchema):
         self.tables[IntegerIntervalSchema].truncate()
         datasource = self.datasources[IntegerIntervalSchema]
@@ -87,7 +87,7 @@ class TestRest(unittest.TestCase):
         IntegerIntervalSchema.test(self, db, docs)
 
     @given(TimeIntervalSchema.list_strategy())
-    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much])
     def test_time_interval(self, docs: TimeIntervalSchema):
         self.tables[TimeIntervalSchema].truncate()
         datasource = self.datasources[TimeIntervalSchema]

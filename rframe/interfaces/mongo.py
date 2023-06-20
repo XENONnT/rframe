@@ -198,25 +198,15 @@ class MongoAggregation(BaseDataQuery):
         # docs = list(self.collection.aggregate(pipeline, allowDiskUse=self.allow_disk_use))
         collected = 0
         limit = limit if limit is not None else float("inf")
-        docs = []
-        for doc in self.collection.aggregate(pipeline, allowDiskUse=allow_disk_use):
-            docs.append(doc)
-            if len(docs) >= self.docs_per_label:
-                docs = self.index.reduce(docs, self.labels)
-                for doc in docs:
-                    yield from_mongo(doc)
-                    collected += 1
-                    if collected >= limit:
-                        return
-                docs = []
 
-        if len(docs) and collected < limit:
-            docs = self.index.reduce(docs, self.labels)
-            for doc in docs:
-                yield from_mongo(doc)
-                collected += 1
-                if collected >= limit:
-                    return
+        docs = list(self.collection.aggregate(pipeline, allowDiskUse=allow_disk_use))
+        docs = self.index.reduce(docs, self.labels)
+
+        for doc in docs:
+            yield from_mongo(doc)
+            collected += 1
+            if collected >= limit:
+                return
 
     def unique(self, fields: Union[str, List[str]]):
         if isinstance(fields, str):
