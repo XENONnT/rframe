@@ -412,7 +412,7 @@ class BaseSchema(BaseModel):
         values = self.dict()
         return {attr: values[attr] for attr in self.get_column_fields()}
 
-    def save(self, datasource=None, **kwargs):
+    def save(self, datasource=None, dry=False, **kwargs):
         if datasource is None:
             datasource = self.default_datasource()
         interface = get_interface(datasource, **kwargs)
@@ -421,7 +421,8 @@ class BaseSchema(BaseModel):
             # No documents found, insert new
             try:
                 self.__pre_insert(datasource)
-                interface.insert(self)
+                if not dry:
+                    interface.insert(self)
             except Exception as e:
                 self.__post_insert(datasource, exception=e)
                 raise e
@@ -431,7 +432,8 @@ class BaseSchema(BaseModel):
             # Single document found, update
             try:
                 existing[0].__pre_update(datasource, self)
-                interface.update(existing[0].index_labels , self)
+                if not dry:
+                    interface.update(existing[0].index_labels , self)
             except Exception as e:
                 existing[0].__post_update(datasource, self, exception=e)
                 raise e

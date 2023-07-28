@@ -159,7 +159,7 @@ class DataAccessor:
         query = self.schema.compile_query(self.storage, **labels)
         return int(query.count())
 
-    def insert(self, docs, raise_on_error=True):
+    def insert(self, docs, raise_on_error=True, dry=False):
         if not self.initialized:
             self.initdb()
             
@@ -175,7 +175,7 @@ class DataAccessor:
             if not isinstance(doc, self.schema):
                 doc = self.schema(**doc)
             try:
-                doc.save(self.storage)
+                doc.save(self.storage, dry=dry)
                 res["success"].append(doc)
             except (InsertionError, UpdateError) as e:
                 if raise_on_error:
