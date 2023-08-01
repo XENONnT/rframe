@@ -74,13 +74,16 @@ class BaseTestSchema(BaseSchema):
     ):
         PERMISSIONS["insert"] = False
         with tester.assertRaises(InsertionError):
+            cls.dry_insert_data(tester, db, docs)
             db.insert(docs)
 
         PERMISSIONS["insert"] = True
+        cls.dry_insert_data(tester, db, docs)
         db.insert(docs)
 
         PERMISSIONS["update"] = False
         with tester.assertRaises(UpdateError):
+            cls.dry_insert_data(tester, db, docs)
             db.insert(docs)
 
     @classmethod
@@ -147,13 +150,13 @@ class BaseTestSchema(BaseSchema):
             assert are_equal(sorted(rf[field].unique()), unique_vals)
             assert are_equal(sorted(rf.unique(field)), unique_vals)
 
+
     @classmethod
     def test(cls, tester: unittest.TestCase, db, docs: List["BaseTestSchema"]):
         cls.insert_data(tester, db, docs)
         cls.basic_tests(tester, db, docs)
         cls.frame_test(tester, db, docs)
         cls.delete_data(tester, db, docs)
-        cls.dry_insert_data(tester, db, docs)
 
 
 class SimpleSchema(BaseTestSchema):
