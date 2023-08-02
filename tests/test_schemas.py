@@ -74,6 +74,8 @@ class BaseTestSchema(BaseSchema):
     ):
         PERMISSIONS["insert"] = False
         with tester.assertRaises(InsertionError):
+            db.insert(docs, dry=True)
+        with tester.assertRaises(InsertionError):
             db.insert(docs)
 
         PERMISSIONS["insert"] = True
@@ -83,6 +85,8 @@ class BaseTestSchema(BaseSchema):
         db.insert(docs)
 
         PERMISSIONS["update"] = False
+        with tester.assertRaises(UpdateError):
+            db.insert(docs, dry=True)
         with tester.assertRaises(UpdateError):
             db.insert(docs)
 
