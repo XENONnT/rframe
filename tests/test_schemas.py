@@ -73,8 +73,11 @@ class BaseTestSchema(BaseSchema):
         cls, tester: unittest.TestCase, db, docs: List["InterpolatingSchema"]
     ):
         PERMISSIONS["insert"] = False
-        with tester.assertRaises(InsertionError):
+        try:
             cls.dry_insert_data(tester, db, docs)
+        except(InsertionError):
+            pass
+        with tester.assertRaises(InsertionError):
             db.insert(docs)
 
         PERMISSIONS["insert"] = True
@@ -82,8 +85,11 @@ class BaseTestSchema(BaseSchema):
         db.insert(docs)
 
         PERMISSIONS["update"] = False
-        with tester.assertRaises(UpdateError):
+        try:
             cls.dry_insert_data(tester, db, docs)
+        except(UpdateError):
+            pass
+        with tester.assertRaises(UpdateError):
             db.insert(docs)
 
     @classmethod
