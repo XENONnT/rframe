@@ -74,12 +74,19 @@ class BaseTestSchema(BaseSchema):
     ):
         PERMISSIONS["insert"] = False
         with tester.assertRaises(InsertionError):
+            db.insert(docs, dry=True)
+        with tester.assertRaises(InsertionError):
             db.insert(docs)
 
         PERMISSIONS["insert"] = True
+        before_insert = db.count()
+        db.insert(docs, dry=True)
+        tester.assertEqual(db.count(), before_insert)
         db.insert(docs)
- 
+
         PERMISSIONS["update"] = False
+        with tester.assertRaises(UpdateError):
+            db.insert(docs, dry=True)
         with tester.assertRaises(UpdateError):
             db.insert(docs)
 
@@ -138,6 +145,7 @@ class BaseTestSchema(BaseSchema):
             unique_vals = sorted(df[field].unique())
             assert are_equal(sorted(rf[field].unique()), unique_vals)
             assert are_equal(sorted(rf.unique(field)), unique_vals)
+
 
     @classmethod
     def test(cls, tester: unittest.TestCase, db, docs: List["BaseTestSchema"]):
@@ -218,6 +226,7 @@ class InterpolatingSchema(BaseTestSchema):
             doc = db.find_one(index_field=index)
             ratio = doc.value / value
             tester.assertAlmostEqual(ratio, 1, delta=1e-2)
+
 
     @classmethod
     def test(cls, tester, db, docs: List["BaseTestSchema"]):

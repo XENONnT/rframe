@@ -32,6 +32,7 @@ class DataAccessor:
         self.schema = schema
         self.storage = datasource
 
+
         for name in dir(self):
 
             if name.startswith("__"):
@@ -50,7 +51,7 @@ class DataAccessor:
             )
             method = makefun.create_function(signature, impl, func_name=name)
             setattr(self, name[1:], method)
-            
+
         if initdb:
             self.initdb()
 
@@ -108,7 +109,7 @@ class DataAccessor:
             fields = list(self.schema.__fields__)
         elif isinstance(fields, str):
             fields = [fields]
-        
+
         labels = {k: v for k, v in labels.items() if v is not None}
         query = self.schema.compile_query(self.storage, **labels)
 
@@ -159,13 +160,13 @@ class DataAccessor:
         query = self.schema.compile_query(self.storage, **labels)
         return int(query.count())
 
-    def insert(self, docs, raise_on_error=True):
+    def insert(self, docs, raise_on_error=True, dry=False):
         if not self.initialized:
             self.initdb()
-            
+
         if not isinstance(docs, (list, tuple)):
             docs = [docs]
-        
+
         res = {
             "success": [],
             "failed": [],
@@ -175,7 +176,7 @@ class DataAccessor:
             if not isinstance(doc, self.schema):
                 doc = self.schema(**doc)
             try:
-                doc.save(self.storage)
+                doc.save(self.storage, dry=dry)
                 res["success"].append(doc)
             except (InsertionError, UpdateError) as e:
                 if raise_on_error:
