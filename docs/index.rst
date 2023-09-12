@@ -5,9 +5,10 @@ Welcome to rframe's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-   readme
+   introduction
    installation
-   usage
+   quickstart
+   writing_schemas
    modules
    contributing
    authors
