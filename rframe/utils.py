@@ -1,4 +1,4 @@
-import re
+import re # https://docs.python.org/3/library/re.html
 import json
 import math
 import inspect
@@ -15,11 +15,17 @@ from .types import Interval
 
 
 def camel_to_snake(name):
+    # translates sentence concatenated by capitalization
+    # to a sentence concatenates by underscores
+    # Example: HiHowAreYou -> hi_how_are_you
     name = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", name)
     return re.sub("([a-z0-9])([A-Z])", r"\1_\2", name).lower()
 
 
 def snake_to_camel(name):
+    # translates sentence concatenated by underscores
+    # to a sentence concatenates by capitalizations
+    # Example: hi_how_are_you -> HiHowAreYou
     return name.title().replace("_", "")
 
 
@@ -44,6 +50,7 @@ def filter_kwargs(func, kwargs):
 
 
 def jsonable(obj):
+    # Converts objects to json format
 
     if obj is None:
         return obj
@@ -80,6 +87,11 @@ def jsonable(obj):
 
 
 def as_bson_schema(schema, resolver=None):
+    """
+    converts a JSON schema to a BSON schema. BSON is a binary format used to store
+    data in MongoDB, and it is similar to JSON in structure but uses a binary encoding
+    scheme to store the data.
+    """
 
     if not isinstance(schema, dict):
         return schema

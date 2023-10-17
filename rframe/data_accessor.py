@@ -1,3 +1,8 @@
+"""
+This code provides a way to interact with a REST API,
+allowing a Python client to query, insert, update, and delete data from the API,
+as well as retrieve summary statistics about the data.
+"""
 import inspect
 import makefun
 import toolz
@@ -12,6 +17,12 @@ from .interfaces.pandas import to_pandas
 
 
 class DataAccessor:
+    """
+    This class provides an interface for interacting
+    with data in a storage and, utilizes Pydantic for data
+    validation. It provides methods for querying data, adding new data,
+    removing existing data, and for initializing the database.
+    """
     schema: "BaseSchema"
     storage: Any
     initialized: bool = False

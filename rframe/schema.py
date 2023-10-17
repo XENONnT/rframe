@@ -34,6 +34,9 @@ class DeletionError(EditError):
 
 
 class BaseSchema(BaseModel):
+    """
+    Defines the base schema all other schemas will inherit from.
+    """
     class Config:
         validate_assignment = True
 
@@ -50,7 +53,7 @@ class BaseSchema(BaseModel):
 
         if hasattr(cls, name):
             raise ValueError(f"Datasource name '{name}' is already registered.")
-            
+
         from rframe.data_accessor import DataAccessor
 
         accessor = DataAccessor(cls, datasource, initdb=initialize)
@@ -114,7 +117,7 @@ class BaseSchema(BaseModel):
                         )
                     params.append(alias_param)
                     break
-                
+
         return inspect.Signature(params)
 
     @classmethod

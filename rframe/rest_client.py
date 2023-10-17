@@ -1,3 +1,9 @@
+"""
+Defines a REST client that can interact with a REST API.
+The client can make requests to the REST AO using HTTPS methods.
+
+"""
+
 import requests
 
 from loguru import logger
@@ -30,6 +36,12 @@ class BaseRestClient(ABC):
 
 
 class RestClient(BaseRestClient):
+    """
+    The RestClient class takes a URL for the REST API, along with optional headers,
+    authentication, and an HTTP client to use.
+    It defines URLs for the various endpoints of the API,
+    and methods for constructing these URLs based on the base URL.
+    """
     QUERY_PATH = "/query"
     INSERT_PATH = "/insert"
     UPDATE_PATH = "/update"
