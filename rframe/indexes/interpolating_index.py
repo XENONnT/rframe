@@ -1,3 +1,4 @@
+import pytz
 import datetime
 from typing import Callable, Union
 
@@ -73,11 +74,11 @@ class InterpolatingIndex(BaseIndex):
         if not docs or label is None:
             return docs
 
-        x = label.replace(tzinfo=None).timestamp() if isinstance(label, datetime.datetime) else label
+        x = label.replace(tzinfo=pytz.utc).timestamp() if isinstance(label, datetime.datetime) else label
         xs = [self.validate_label(d[self.name]) for d in docs]
         # just convert all datetimes to timestamps to avoid complexity
         # FIXME: maybe properly handle timezones instead
-        xs = [xi.replace(tzinfo=None).timestamp() if isinstance(xi, datetime.datetime) else xi for xi in xs]
+        xs = [xi.replace(tzinfo=pytz.utc).timestamp() if isinstance(xi, datetime.datetime) else xi for xi in xs]
         if len(docs) == 1:
             new_document = docs[0]
         else:
