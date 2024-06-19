@@ -23,6 +23,9 @@ def interpolater(x, xs, ys, kind="linear"):
 @interpolater.register(int)
 def interpolate_number(x, xs, ys, kind="linear"):
     if isinstance(ys[0], (float, int)):
+        sort = np.argsort(xs)
+        xs = np.array(xs)[sort]
+        ys = np.array(ys)[sort]
         return np.interp(x, xs, ys)
     return nn_interpolate(x, xs, ys)
 
