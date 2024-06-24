@@ -2,7 +2,7 @@
 History
 =======
 
-0.2.20 (2022-02-24)
+0.2.21 (2024-06-21)
 --------------------
 * Sort before interpolating by @zihaoxu98 in https://github.com/XENONnT/rframe/pull/61
 
