@@ -178,11 +178,11 @@ class JsonInterpolationQuery(JsonBaseQuery):
         after_mask = field_values > label
         after_values = field_values[after_mask]
 
-        before_idxs = np.argsort(np.abs(before_values) - label)[:limit]
+        before_idxs = np.argsort(np.abs(before_values) - label, kind="mergesort")[:limit]
         before_records = [records[i] for i in np.flatnonzero(before_mask)]
         before_values = [before_records[i] for i in before_idxs]
 
-        after_idxs = np.argsort(np.abs(after_values) - label)[:limit]
+        after_idxs = np.argsort(np.abs(after_values) - label, kind="mergesort")[:limit]
         after_records = [records[i] for i in np.flatnonzero(after_mask)]
         after_values = [after_records[i] for i in after_idxs]
         return before_values + after_values
