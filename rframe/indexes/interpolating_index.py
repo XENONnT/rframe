@@ -23,7 +23,7 @@ def interpolater(x, xs, ys, kind="linear"):
 @interpolater.register(int)
 def interpolate_number(x, xs, ys, kind="linear"):
     if isinstance(ys[0], (float, int)):
-        sort = np.argsort(xs)
+        sort = np.argsort(xs, kind="mergesort")
         xs = np.array(xs)[sort]
         ys = np.array(ys)[sort]
         return np.interp(x, xs, ys)
