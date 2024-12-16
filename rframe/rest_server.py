@@ -29,6 +29,11 @@ Model = Mapping[Any, Any]
 
 
 class SchemaRouter(APIRouter):
+    """
+     Provides a set of HTTP endpoints for interacting with data stored in a database. The class
+     constructor takes a number of arguments that configure the endpoints, such as the URL path
+     and HTTP methods that each endpoint supports.
+    """
     schema: Type[BaseSchema]
     _base_path: str = "/"
 

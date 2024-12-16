@@ -1,4 +1,13 @@
 # type: ignore
+"""
+Due to a variety of reasons, sometimes the '==' symbol does not
+produce the desired results even when 2 qauntities should be considered
+equal, for example due to the  imprecise nature of float point arithmetic
+we could have 2 values that are the same but are treated as different,
+so we can define an 'are_equal' functions to check if the two values
+are 'close enough' to be considered equal.
+"""
+
 
 import math
 from numbers import Number

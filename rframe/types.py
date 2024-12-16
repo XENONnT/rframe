@@ -1,3 +1,9 @@
+"""
+Defines data types that can be useful for the indexing of
+data. In particular this defines the new datatypes which
+will be interval and defines operations within these datatypes.
+"""
+
 import datetime
 import pytz
 from typing import ClassVar, Literal, Mapping, Optional, TypeVar, Union
@@ -201,5 +207,5 @@ class TimeInterval(Interval):
 
         if value > cls._max:
             raise ValueError(f"{cls} boundary must be less than {cls._max}.")
-        
+
         return value
