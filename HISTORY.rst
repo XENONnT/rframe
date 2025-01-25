@@ -2,6 +2,14 @@
 History
 =======
 
+0.2.22 (2025-01-25)
+--------------------
+* Use stable sorting of `numpy.argsort` by @dachengx in https://github.com/XENONnT/rframe/pull/64
+* Upgrade `toolz` and drop python 3.8 by @dachengx in https://github.com/XENONnT/rframe/pull/66
+
+**Full Changelog**: https://github.com/XENONnT/rframe/compare/v0.2.21...v0.2.22
+
+
 0.2.21 (2024-06-21)
 --------------------
 * Sort before interpolating by @zihaoxu98 in https://github.com/XENONnT/rframe/pull/61
