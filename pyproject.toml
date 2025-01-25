@@ -23,7 +23,7 @@ packages = [
 python = ">=3.8,<4.0"
 pydantic = "^1.9.0"
 pandas = "*"
-toolz = "^0.11.2"
+toolz = "^1.0.0"
 requests = "^2.27.1"
 makefun = "^1.13.1"
 loguru = "^0.6.0"
