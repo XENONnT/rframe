@@ -12,7 +12,9 @@ classifiers=[
     'Intended Audience :: Developers',
     'License :: OSI Approved :: MIT License',
     'Natural Language :: English',
-    'Programming Language :: Python :: 3.8',
+    'Programming Language :: Python :: 3.9',
+    'Programming Language :: Python :: 3.10',
+    'Programming Language :: Python :: 3.11',
 ]
 packages = [
     { include = "rframe" },
@@ -20,16 +22,17 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.8,<4.0"
+python = ">=3.9,<4.0"
 pydantic = "^1.9.0"
 pandas = "*"
-toolz = "^0.11.2"
+toolz = "^1.0.0"
 requests = "^2.27.1"
 makefun = "^1.13.1"
 loguru = "^0.6.0"
 jsonschema = "^4.4.0"
 fsspec = "^2022.2.0"
 plum-dispatch = "^1.5.9"
+yapf = "0.40.1"
 
 [tool.poetry.dev-dependencies]
 bumpversion = "*"
@@ -64,7 +67,7 @@ rframe = 'rframe.cli:main'
 
 
 [build-system]
-requires = ["poetry-core>=1.0.8", "setuptools"]
+requires = ["poetry-core>=1.8.3", "setuptools"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.dephell.main]
