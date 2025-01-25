@@ -9,7 +9,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu]
-        python-version: [ '3.8', '3.9']
+        python-version: [ '3.10', '3.11']
     runs-on: ${{ matrix.os }}-latest
     steps:
       - name: Git checkout
@@ -37,4 +37,4 @@ jobs:
       - name: Run tests
         env:
           TEST_MONGO_URI: 'localhost'
-        run: poe test -v
+        run: poe test -v --full-trace
