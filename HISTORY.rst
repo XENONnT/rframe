@@ -2,6 +2,13 @@
 History
 =======
 
+0.2.24 (2025-02-03)
+--------------------
+* Downgrade requests by @dachengx in https://github.com/XENONnT/rframe/pull/70
+
+**Full Changelog**: https://github.com/XENONnT/rframe/compare/v0.2.23...v0.2.24
+
+
 0.2.23 (2025-02-03)
 --------------------
 * Try to update dependencies by @dachengx in https://github.com/XENONnT/rframe/pull/68
