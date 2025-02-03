@@ -23,7 +23,7 @@ packages = [
 
 [tool.poetry.dependencies]
 python = ">=3.9,<3.13"
-pydantic = "^2.10.6"
+pydantic = "<2.0"
 pandas = "*"
 toolz = "^1.0.0"
 requests = "^2.32.3"
@@ -54,7 +54,7 @@ fastapi = "^0.115.8"
 coveralls = "^4.0.1"
 tinydb = "^4.8.2"
 pytest-cov = "^6.0.0"
-rstcheck = "^6.2.4"
+rstcheck = "^6.1.0"
 mypy = "^1.14.1"
 perflint = "^0.8.1"
 
