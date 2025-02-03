@@ -2,6 +2,13 @@
 History
 =======
 
+0.2.23 (2025-02-03)
+--------------------
+* Try to update dependencies by @dachengx in https://github.com/XENONnT/rframe/pull/68
+
+**Full Changelog**: https://github.com/XENONnT/rframe/compare/v0.2.22...v0.2.23
+
+
 0.2.22 (2025-01-25)
 --------------------
 * Use stable sorting of `numpy.argsort` by @dachengx in https://github.com/XENONnT/rframe/pull/64
